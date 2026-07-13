@@ -2,9 +2,6 @@
 .DS_Store
 **/.DS_Store
 
-# Block local automated script workflows and backup caches
-*deploy.sh*
-*upload.sh*
 *~
 
 # Block local compiled binary directories and deployment outputs
