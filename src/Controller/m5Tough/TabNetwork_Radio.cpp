@@ -125,12 +125,7 @@ void TabNetwork::broadcastControlPacket() {
     // =====================================================================
     // 2. OVERNIGHT LOCKOUT EVALUATION (20:00 to 08:00)
     // =====================================================================
-    bool time_is_allowed = false;
-    if (sysState.allow_fill_start_hour > sysState.allow_fill_end_hour) {
-        if (current_hour >= sysState.allow_fill_start_hour || current_hour < sysState.allow_fill_end_hour) time_is_allowed = true;
-    } else {
-        if (current_hour >= sysState.allow_fill_start_hour && current_hour < sysState.allow_fill_end_hour) time_is_allowed = true;
-    }
+    bool time_is_allowed = sysState.timeAllowed();
 
     // =====================================================================
     // 3. CORE AUTOMATION DECISION LINK

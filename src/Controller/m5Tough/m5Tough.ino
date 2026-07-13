@@ -9,6 +9,7 @@
 #include <lvgl.h>
 #include <Wire.h>               
 #include <WiFi.h>
+#include <ArduinoOTA.h>
 
 #include "SystemState.h"
 #include "PoolSensor.h"       
@@ -36,6 +37,32 @@ TabHistory *tabHistory = nullptr;
 unsigned long lastHardwareSample = 0;
 const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
 const unsigned long UI_INTERVAL = 1000; // ms 1000ms = 1s
+
+void setupOTAConfiguration() {
+    // 1. Give your pool filler a unique network broadcast identity
+    ArduinoOTA.setHostname("SmartPoolFiller-Tough");
+
+    // 2. Set an optional upload security password so neighbors cannot alter the pool
+    // ArduinoOTA.setPassword("pooladmin123");
+
+    // 3. Mount diagnostic feedback trackers for debugging
+    ArduinoOTA.onStart([]() {
+        Serial.println(F("[OTA] Starting firmware flashing..."));
+    });
+    ArduinoOTA.onEnd([]() {
+        Serial.println(F("\n[OTA] Success! System rebooting..."));
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        Serial.printf("Flashing Progress: %u%%\r", (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.printf("OTA Processing Error [%u]\n", error);
+    });
+
+    // 4. Fire up the network listening socket
+    ArduinoOTA.begin();
+    Serial.println(F("[OTA] Wireless flash engine listening..."));
+}
 
 void my_disp_flush(lv_display_t * d, const lv_area_t * area, uint8_t * px) {
     uint32_t w = (area->x2 - area->x1 + 1);
@@ -230,6 +257,8 @@ void hw_loop(unsigned long currentMillis) {
 void loop() {
     unsigned long currentMillis = millis();
 
+    ArduinoOTA.handle();
+
     if (currentMillis - lastHardwareSample >= HARDWARE_INTERVAL) {
         lastHardwareSample = currentMillis;
         hw_loop(currentMillis);
@@ -255,110 +284,13 @@ void loop() {
     delay(5);
 }
 
-void loop_old() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - lastHardwareSample >= HARDWARE_INTERVAL) {
-        lastHardwareSample = currentMillis;
-        if (activeSensor != nullptr) {
-            activeSensor->update(); 
-            sysState.sim_voltage = activeSensor->getVoltage();
-            sysState.ads_hardware_found = activeSensor->isHardwarePresent() && !activeSensor->isFaulted();
-        }
-
-        // =====================================================================
-        // INTEGRATED: TIME-SCALED HISTORY ACCUMULATOR
-        // =====================================================================
-        static uint32_t last_history_sample_time = 0;
-        
-        // Real-world sample window is 60,000ms (1 min).
-        uint32_t scaled_sample_interval = 60000 / sysState.time_scale_factor;
-
-        if (millis() - last_history_sample_time >= scaled_sample_interval) {
-            last_history_sample_time = millis();
-            
-            int pct; float instant_depth; const char* status;
-            sysState.getPoolMetrics(pct, instant_depth, status);
-
-            // Append instant depth readings cleanly into the encapsulated struct history buffer
-            sysState.hourly_depth_history[sysState.history_write_index] = instant_depth;
-            sysState.history_write_index++;
-            
-            if (sysState.history_write_index >= 60) {
-                sysState.history_write_index = 0;
-                sysState.history_buffer_primed = true; // 1-hour log array fully compiled!
-            }
-        }
-
-        if (tabNetwork != nullptr) {
-            tabNetwork->broadcastControlPacket(); // Triggers the radio directly on Core 1
-        }
-    }
-
-    int pct = 0; float depth = 0.0f; const char* status = "";
-    sysState.getPoolMetrics(pct, depth, status);
-    
-    if (sl_status_label) {
-        char sb_buf[64];
-        if (activeSensor != nullptr && activeSensor->isHardwarePresent() && activeSensor->isFaulted()) {
-            snprintf(sb_buf, sizeof(sb_buf), "LEVEL: ERROR | HW LOSS");
-        } else {
-            snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1f%s | %s", 
-                     pct, depth, (sysState.use_metric ? "cm" : "in"), status);
-        }
-        lv_label_set_text(sl_status_label, sb_buf);
-    }
-
-    // --- REAL-TIME HARDWARE RTC CENTER CLOCK CONTROLLER ---
-    if (sl_time_label) {
-        time_t raw_time = time(nullptr);
-        struct tm* local_time = localtime(&raw_time);
-
-        char clk_buf[16] = {0}; 
-        
-        if (sysState.use_24hr_format) {
-            // Standard 24-Hour Military Layout (e.g., 14:05)
-            snprintf(clk_buf, sizeof(clk_buf), "%02d:%02d", local_time->tm_hour, local_time->tm_min);
-        } else {
-            // Standard 12-Hour Layout with AM/PM Designators
-            int display_hour = local_time->tm_hour % 12;
-            if (display_hour == 0) display_hour = 12; // Handle midnight/noon zero offsets
-            const char* period = (local_time->tm_hour >= 12) ? "PM" : "AM";
-            
-            snprintf(clk_buf, sizeof(clk_buf), "%d:%02d %s", display_hour, local_time->tm_min, period);
-        }
-        
-        lv_label_set_text(sl_time_label, clk_buf);
-    }
-
-    if (sl_wifi_icon_label && tabNetwork != nullptr) {
-        lv_color_t top_bar_icon_color;
-        const char* top_bar_icon_symbol = tabNetwork->getWifiStatusIcon(top_bar_icon_color);
-        lv_label_set_text(sl_wifi_icon_label, top_bar_icon_symbol);
-        lv_obj_set_style_text_color(sl_wifi_icon_label, top_bar_icon_color, 0);
-    }
-
-    if (tabMainDisplay != nullptr) tabMainDisplay->update();  
-    if (tabSettings != nullptr)    tabSettings->update();
-    if (tabCalibration != nullptr) tabCalibration->update();
-    if (tabNetwork != nullptr)     tabNetwork->update();
-    if (tabHistory != nullptr)     tabHistory->update();
-
-    static uint32_t last_tick = 0;
-    uint32_t now = millis();
-    lv_tick_inc(now - last_tick);
-    last_tick = now;
-
-    lv_timer_handler(); 
-    delay(5);
-}
-
 void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     M5.Power.setExtOutput(true); 
 
     Serial.begin(115200); 
-
+    
     sysState.loadFromFlash(); 
 
     tabMainDisplay = new TabMainDisplay();
@@ -406,6 +338,10 @@ void setup() {
     setup_ui();
     tabNetwork->connectNetwork(); 
 
+    ArduinoOTA.setHostname("SmartPoolFiller-Tough");
+    ArduinoOTA.setPassword("admin");
+    ArduinoOTA.setRebootOnSuccess(true); 
+
     Serial.println("\n--- HARDWARE MEMORY AUDIT ---");
     size_t freeInternalRAM = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     size_t totalInternalRAM = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
@@ -415,4 +351,7 @@ void setup() {
     size_t freePSRAM = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     Serial.printf("External PSRAM Free: %d bytes\n", freePSRAM);
     Serial.println("-----------------------------\n");
+
+    ArduinoOTA.begin();
+
 }

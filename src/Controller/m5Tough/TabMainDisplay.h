@@ -64,10 +64,13 @@ public:
             // Wireless radio is powered down entirely by operator preference
             updateString(l_valve_state, "RADIO OFF", lv_palette_main(LV_PALETTE_GREY));
         } 
-        else {
+        else if (!sysState.timeAllowed()) {
+            updateString(l_valve_state, "VALVE: DELAYED", lv_palette_main(LV_PALETTE_GREY));
+        } else {
             // Read the exact command state your background transmission thread is broadcasting
             if (sysState.active_master_command_state == 1) {
-                updateString(l_valve_state, "VALVE: FILLING", lv_palette_main(LV_PALETTE_RED));
+                    updateString(l_valve_state, "VALVE: FILLING", lv_palette_main(LV_PALETTE_RED));
+
             } 
             else if (sysState.active_master_command_state == 2) {
                 updateString(l_valve_state, "VALVE: RESTING", lv_palette_main(LV_PALETTE_ORANGE));

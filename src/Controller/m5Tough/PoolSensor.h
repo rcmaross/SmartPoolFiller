@@ -98,7 +98,6 @@ public:
         }
 
         // 2. Data Acquisition
-        // 🚀 RESTORED: Direct library single-ended scan replaces raw register reads
         int16_t raw0 = _ads.readADC_SingleEnded(0);
 
         // 3. Digital Output Freeze Detection Watchdog
@@ -108,9 +107,10 @@ public:
             _frozenCounter = 0;
             _lastRawAdc = raw0;
         }
+        _currentVoltage = _ads.computeVolts(raw0);
 
         // Intercept corrupt or internal library artifact error bounds (e.g., timeouts)
-        if (raw0 == -1 || raw0 == 0xFFFF || raw0 == 128 || _frozenCounter >= _frozenLimit) {
+        if (_currentVoltage < 0.4f || _frozenCounter >= _frozenLimit) {
             if (!_isCurrentlyFaulted) {
                 Serial.printf("[SENSOR FAULT] Corrupted or frozen registration data packet received: %d\n", raw0);
             }
@@ -122,8 +122,6 @@ public:
                 Serial.println(F("[SENSOR RECOVERY] ADS1115 live signaling successfully re-established."));
                 _isCurrentlyFaulted = false;
             }
-            // 🚀 RESTORED: Standard driver translation calculation
-            _currentVoltage = _ads.computeVolts(raw0);
         }
     }
     

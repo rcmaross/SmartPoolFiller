@@ -59,6 +59,22 @@ struct SystemState {
         return sum / 60.0f;
     }
 
+    bool timeAllowed() {
+        // Fetch local time coordinates
+        time_t raw_time = time(nullptr);
+        struct tm* timeinfo = localtime(&raw_time);
+        int current_hour = timeinfo->tm_hour;
+        bool time_is_allowed = false;
+        if (allow_fill_start_hour > allow_fill_end_hour) {
+            if (current_hour >= allow_fill_start_hour || current_hour < allow_fill_end_hour) 
+                return true;
+        } else {
+            if (current_hour >= allow_fill_start_hour && current_hour < allow_fill_end_hour) 
+                return true;
+        }    
+        return false;
+    }
+
     void saveToFlash() {
         Preferences prefs;
         prefs.begin("pool_cfg", false);
