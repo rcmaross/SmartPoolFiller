@@ -42,15 +42,26 @@ public:
         // FIXED: Expanded point count to explicitly hold 24 entries (1 full day)
         lv_chart_set_point_count(chart_trends, 24); 
 
+        // hone in on full+1 to full -2 inches
+        int lowDepth = sysState.offset_in - 2;
+        int highDepth = sysState.offset_in + 1;
+
+        if(sysState.use_metric){
+            lowDepth *= 2.54f;
+            highDepth *= 2.54f;
+        }
+
         // Set ranges across the vertical dimensions
-        lv_chart_set_range(chart_trends, LV_CHART_AXIS_PRIMARY_Y, 95, 101);
+        lv_chart_set_range(chart_trends, LV_CHART_AXIS_PRIMARY_Y, lowDepth * 100, highDepth * 100);
         lv_chart_set_range(chart_trends, LV_CHART_AXIS_SECONDARY_Y, 0, 60);
 
         // --- LVGL v9 SCALE REGISTERS CONFIGURATION ---
         lv_obj_t* scale_left = lv_scale_create(tab);
         lv_obj_set_size(scale_left, 30, 95); lv_obj_set_pos(scale_left, 2, 5); 
         lv_scale_set_mode(scale_left, LV_SCALE_MODE_VERTICAL_RIGHT);
-        lv_scale_set_range(scale_left, 95, 101);
+
+
+        lv_scale_set_range(scale_left, lowDepth, highDepth);
         lv_scale_set_total_tick_count(scale_left, 4); lv_scale_set_major_tick_every(scale_left, 1);
         lv_obj_set_style_text_color(scale_left, lv_color_black(), 0);
         lv_obj_set_style_text_font(scale_left, &lv_font_montserrat_14, 0);
@@ -72,13 +83,13 @@ public:
 
         // Initialize master historical data logs to a standard baseline (100% full, 0 run mins)
         for (int i = 0; i < 168; i++) {
-            level_history_log[i] = 100;
+            level_history_log[i] = highDepth * 100;
             valve_history_log[i] = 0;
         }
 
         // Initialize display canvas tracking layout lines
         for (int i = 0; i < 24; i++) {
-            level_chart_data[i] = 100;
+            level_chart_data[i] = highDepth * 100;
             valve_chart_data[i] = 0;
         }
 
@@ -109,13 +120,15 @@ public:
             float true_window_run_minutes = ((float)sysState.live_valve_run_seconds_current_hour / 60.0f) * sysState.time_scale_factor;
             if (true_window_run_minutes > 60.0f) true_window_run_minutes = 60.0f; // Maximum hour constraint
 
+            int depth_i = (int)(depth * 100); // multiply by 100 to make a psuedo float
+
             // A. Overwrite the single oldest slot in the master 168-hour history log [INDEX]
-            level_history_log[ring_write_index] = pct;
+            level_history_log[ring_write_index] = depth_i;
             valve_history_log[ring_write_index] = (int32_t)true_window_run_minutes;
 
             // PADDING SERIAL PRINT DEBUG LINES:
-            Serial.printf("[HIST LOG] Slot %d saved -> Level: %d%%, Actual Valve Run: %d mins (Raw Loop Accumulator: %d seconds)\n", 
-                          ring_write_index, pct, (int32_t)true_window_run_minutes, sysState.live_valve_run_seconds_current_hour);
+            Serial.printf("[HIST LOG] Slot %d saved -> Level: %f, Actual Valve Run: %d mins (Raw Loop Accumulator: %d seconds)\n", 
+                          ring_write_index, depth, (int32_t)true_window_run_minutes, sysState.live_valve_run_seconds_current_hour);
 
             // Instantly clear the global real-time accumulator block for the next hour window pass
             sysState.live_valve_run_seconds_current_hour = 0;

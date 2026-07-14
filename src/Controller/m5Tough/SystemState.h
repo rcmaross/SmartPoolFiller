@@ -32,14 +32,13 @@ struct SystemState {
     bool use_24hr_format = false;
 
     // scale time for testing.  perhaps someday we can make this configurable?
-    // uint32_t time_scale_factor = 360; // 1hr = 10s 
-    uint32_t time_scale_factor = 1; //real world
+    uint32_t time_scale_factor = 360; // 1hr = 10s 
+    //uint32_t time_scale_factor = 1; //real world
     float fill_deadband_trigger = 0.25f; 
 
     // 60-sample historical depth tracker array (representing 60 sequential minutes)
     float hourly_depth_history[60] = {0.0f};
     int history_write_index = 0;
-    bool history_buffer_primed = false;
     // Tracks active physical valve open seconds in real-time
     uint32_t live_valve_run_seconds_current_hour = 0;
     
@@ -48,12 +47,6 @@ struct SystemState {
 
     // Helper method to pull the smoothed rolling historical depth average
     float getRollingOneHourDepthAverage() {
-        if (!history_buffer_primed) {
-            // Fallback to instant reading if the history buffer is still filling on boot
-            int pct; float depth; const char* status;
-            getPoolMetrics(pct, depth, status);
-            return depth;
-        }
         float sum = 0.0f;
         for (int i = 0; i < 60; i++) sum += hourly_depth_history[i];
         return sum / 60.0f;
@@ -133,7 +126,20 @@ struct SystemState {
         prefs.end();
     }
 
-    void getPoolMetrics(int& out_pct, float& out_depth, const char*& out_status) {
+    const char* getPoolStatus(int pct) {
+        if (pct >= 95 && pct <= 100)
+            return("FULL");
+        else if (pct > 100)
+            return("HIGH");
+        else if (pct < 95 && pct >= 90)
+            return("LOW");
+        else if (pct < 90 && pct > 0)
+            return("CRITICAL");
+        else
+            return("EMPTY / NO SIGNAL");
+    }
+
+    void getInstantaneousPoolMetrics(int& out_pct, float& out_depth, const char*& out_status) {
         float volts = sim_voltage;
         if (volts < empty_volts) volts = empty_volts;
         
@@ -143,18 +149,37 @@ struct SystemState {
             pct_f = ((volts - empty_volts) / span) * 100.0f;
         }
         out_pct = (int)pct_f;
-        
-        if (!use_metric) {
-            out_depth = (pct_f / 100.0f) * offset_in;
-        } else {
-            out_depth = ((pct_f / 100.0f) * offset_in) * 2.54f;
+
+        out_depth = (pct_f / 100.0f) * offset_in;
+        if (use_metric)
+            out_depth *= 2.54f;
+
+        out_status = getPoolStatus(out_pct);
+    }
+
+    void getPoolMetrics(int& out_pct, float& out_depth, const char*& out_status) {
+        float pct_f = 0.0f;
+
+        out_depth = getRollingOneHourDepthAverage();
+
+        float offset = offset_in;
+        if (use_metric)
+            offset *= 2.54f;
+        pct_f = ((out_depth)/offset) * 100.0f;
+        out_pct = (int)pct_f;
+
+        out_status = getPoolStatus(out_pct);
+    }
+
+    void initHistory(){
+        int init_pct = 0; float init_depth = 0.0f; const char* init_status = "";
+        getInstantaneousPoolMetrics(init_pct, init_depth, init_status);
+
+        for (int i = 0; i < 60; i++) {
+            hourly_depth_history[i] = init_depth;
         }
 
-        if (out_pct >= 95 && out_pct <= 100)      out_status = "FULL";
-        else if (out_pct > 100)                   out_status = "HIGH";
-        else if (out_pct < 95 && out_pct >= 90)   out_status = "LOW";
-        else if (out_pct < 90 && out_pct > 0)     out_status = "CRITICAL";
-        else                                      out_status = "EMPTY / NO SIGNAL";
+        history_write_index = 0;
     }
 };
 

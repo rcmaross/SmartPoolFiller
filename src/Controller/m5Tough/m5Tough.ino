@@ -38,32 +38,6 @@ unsigned long lastHardwareSample = 0;
 const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
 const unsigned long UI_INTERVAL = 1000; // ms 1000ms = 1s
 
-void setupOTAConfiguration() {
-    // 1. Give your pool filler a unique network broadcast identity
-    ArduinoOTA.setHostname("SmartPoolFiller-Tough");
-
-    // 2. Set an optional upload security password so neighbors cannot alter the pool
-    // ArduinoOTA.setPassword("pooladmin123");
-
-    // 3. Mount diagnostic feedback trackers for debugging
-    ArduinoOTA.onStart([]() {
-        Serial.println(F("[OTA] Starting firmware flashing..."));
-    });
-    ArduinoOTA.onEnd([]() {
-        Serial.println(F("\n[OTA] Success! System rebooting..."));
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Flashing Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("OTA Processing Error [%u]\n", error);
-    });
-
-    // 4. Fire up the network listening socket
-    ArduinoOTA.begin();
-    Serial.println(F("[OTA] Wireless flash engine listening..."));
-}
-
 void my_disp_flush(lv_display_t * d, const lv_area_t * area, uint8_t * px) {
     uint32_t w = (area->x2 - area->x1 + 1);
     uint32_t h = (area->y2 - area->y1 + 1);
@@ -194,7 +168,7 @@ void hw_loop(unsigned long currentMillis) {
         last_history_sample_time = currentMillis;
         
         int pct; float instant_depth; const char* status;
-        sysState.getPoolMetrics(pct, instant_depth, status);
+        sysState.getInstantaneousPoolMetrics(pct, instant_depth, status);
 
         // Append instant depth readings cleanly into the encapsulated struct history buffer
         sysState.hourly_depth_history[sysState.history_write_index] = instant_depth;
@@ -202,7 +176,6 @@ void hw_loop(unsigned long currentMillis) {
         
         if (sysState.history_write_index >= 60) {
             sysState.history_write_index = 0;
-            sysState.history_buffer_primed = true; // 1-hour log array fully compiled!
         }
     }
 
@@ -291,7 +264,7 @@ void setup() {
 
     Serial.begin(115200); 
     
-    sysState.loadFromFlash(); 
+    sysState.loadFromFlash();
 
     tabMainDisplay = new TabMainDisplay();
     tabSettings    = new TabSettings();
@@ -306,14 +279,16 @@ void setup() {
     if (PoolSensor::probeHardware(Wire)) {
         Serial.println(F("[BOOT] Physical Silicon verified on I2C bus."));
         activeSensor = new PhysicalAdcSensor(Wire);
-        Serial.println("HERE new");
 
     } else {
         Serial.println(F("[BOOT] Bus lines open or unpowered. Launching Simulator..."));
         activeSensor = new SimulatedSerialSensor();
     }
     activeSensor->begin();
-    Serial.println("HERE");
+    sysState.sim_voltage = activeSensor->getVoltage();
+
+    sysState.initHistory();
+
     WiFi.onEvent(WiFiEventTracker);
 
     lv_init();

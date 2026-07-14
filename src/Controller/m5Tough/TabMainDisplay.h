@@ -6,7 +6,7 @@ class TabMainDisplay : public BaseTab {
 private:
     lv_obj_t* l_measurement = nullptr;
     lv_obj_t* l_inches_delta = nullptr; 
-    lv_obj_t* l_i2c_addr = nullptr;
+    lv_obj_t* l_live_measure = nullptr;
     lv_obj_t* l_raw_voltage = nullptr;
 
     lv_obj_t* l_valve_state = nullptr;
@@ -45,18 +45,23 @@ public:
         l_measurement  = createString(tab_container, "0.0 in", 24, 110, 20, lv_color_black()); 
         l_inches_delta = createString(tab_container, "0.0 in", 18, 110, 52, lv_palette_main(LV_PALETTE_GREY)); 
         l_valve_state  = createString(tab_container, "VALVE: OFFLINE", 14, 110, 75, lv_palette_main(LV_PALETTE_GREY));
-        l_i2c_addr     = createString(tab_container, "I2C Addr: 0x48", 14, 110, 92, lv_color_black());
+        l_live_measure = createString(tab_container, "0.0 in (0.0in)", 14, 110, 92, lv_palette_main(LV_PALETTE_GREY));
         l_raw_voltage  = createString(tab_container, "Sensor: 0.000 V", 14, 110, 110, lv_color_black());
     }
 
     void update() override {
-        if (!l_measurement || !l_inches_delta || !l_i2c_addr || !l_raw_voltage || !l_valve_state ||
+        if (!l_measurement || !l_inches_delta || !l_live_measure || !l_raw_voltage || !l_valve_state ||
             !rect_top_red || !rect_mid_yellow || !rect_bot_blue) return;
 
         int pct = 0; float poolDepth = 0.0f; const char* status = "";
         sysState.getPoolMetrics(pct, poolDepth, status);
 
+        int unused_pct = 0; float instantPoolDepth = 0.0f; const char* unused_status = "";
+        sysState.getInstantaneousPoolMetrics(unused_pct, instantPoolDepth, unused_status);
+
         String depthStr = ""; String deltaStr = "";
+        String instantDepthStr = ""; String instantDeltaStr = "";
+
         // =====================================================================
         // MASTER STATE VALVING MODIFIER (Driven cleanly by your master core states)
         // =====================================================================
@@ -86,6 +91,13 @@ public:
             if (inchesFromFull > 0.05f)        deltaStr = "+" + String(inchesFromFull, 1) + " in";
             else if (inchesFromFull < -0.05f)  deltaStr = String(inchesFromFull, 1) + " in";
             else                               deltaStr = "0.0 in";
+
+            instantDepthStr = String(instantPoolDepth, 1) + " in";
+            inchesFromFull = instantPoolDepth - sysState.offset_in;
+            if (inchesFromFull > 0.05f)        instantDeltaStr = "+" + String(inchesFromFull, 1) + " in";
+            else if (inchesFromFull < -0.05f)  instantDeltaStr = String(inchesFromFull, 1) + " in";
+            else                               instantDeltaStr = "0.0 in";
+
         } else {
             depthStr = String(poolDepth, 1) + " cm";
             float targetCm = sysState.offset_in * 2.54f;
@@ -93,29 +105,33 @@ public:
             if (cmFromFull > 0.1f)             deltaStr = "+" + String(cmFromFull, 1) + " cm";
             else if (cmFromFull < -0.1f)       deltaStr = String(cmFromFull, 1) + " cm";
             else                               deltaStr = "0.0 cm";
+
+            instantDepthStr = String(instantPoolDepth, 1) + " cm";
+            cmFromFull = instantPoolDepth - targetCm;
+            if (cmFromFull > 0.1f)             instantDeltaStr = "+" + String(cmFromFull, 1) + " cm";
+            else if (cmFromFull < -0.1f)       instantDeltaStr = String(cmFromFull, 1) + " cm";
+            else                               instantDeltaStr = "0.0 cm";
+
         }
 
         // 2 ARGUMENTS MATCHING: Uses text-only variant. Background font color is completely UNCHANGED
         updateString(l_measurement, depthStr.c_str());
         updateString(l_inches_delta, deltaStr.c_str());
 
+        // Combine the live depth and its deviation delta together into a single string
+        String fullLiveStr = "Inst: " + instantDepthStr + " (" + instantDeltaStr + ")";
+        updateString(l_live_measure, fullLiveStr.c_str());
+
         // Process hardware diagnostics
         if (sysState.ads_hardware_found) {
-            // 3 ARGUMENTS MATCHING: Explicitly pushes text AND color updates simultaneously
-            updateString(l_i2c_addr, "I2C Addr: 0x48", lv_palette_main(LV_PALETTE_GREEN));
-            
             String voltStr = "Raw Volt: " + String(sysState.sim_voltage, 3) + " V";
             updateString(l_raw_voltage, voltStr.c_str(), lv_palette_main(LV_PALETTE_BLUE));
         } else {
             if (sysState.sim_voltage <= 0.02f) {
-                updateString(l_i2c_addr, "ADS1115: HARD FAULT", lv_palette_main(LV_PALETTE_RED));
                 updateString(l_raw_voltage, "LOOP DISCONNECTED", lv_palette_main(LV_PALETTE_RED));
-                
                 updateString(l_measurement, "FAULT", lv_palette_main(LV_PALETTE_RED));
                 updateString(l_inches_delta, "OFFLINE", lv_palette_main(LV_PALETTE_RED));
             } else {
-                updateString(l_i2c_addr, "MODE: SIMULATOR", lv_palette_main(LV_PALETTE_ORANGE));
-                
                 String voltStr = "Sim Volt: " + String(sysState.sim_voltage, 3) + " V";
                 updateString(l_raw_voltage, voltStr.c_str(), lv_palette_main(LV_PALETTE_ORANGE));
             }
