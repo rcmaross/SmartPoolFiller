@@ -32,8 +32,8 @@ struct SystemState {
     bool use_24hr_format = false;
 
     // scale time for testing.  perhaps someday we can make this configurable?
-    uint32_t time_scale_factor = 360; // 1hr = 10s 
-    //uint32_t time_scale_factor = 1; //real world
+    //uint32_t time_scale_factor = 360; // 1hr = 10s 
+    uint32_t time_scale_factor = 1; //real world
     float fill_deadband_trigger = 0.25f; 
 
     // 60-sample historical depth tracker array (representing 60 sequential minutes)
