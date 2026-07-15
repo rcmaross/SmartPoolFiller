@@ -57,11 +57,23 @@ void TabSettings::manual_clock_adjust_cb(lv_event_t* e) {
 void TabSettings::time_format_toggle_cb(lv_event_t* e) {
     sysState.use_24hr_format = !sysState.use_24hr_format;
     sysState.saveToFlash();
-} 
+}
+
+void TabSettings::sys_id_adjust_cb(lv_event_t* e) {
+    intptr_t mod = (intptr_t)lv_event_get_user_data(e);
+    
+    sysState.system_id += (int)mod;
+    
+    // Bind constraints between system 1 and 8
+    if (sysState.system_id > 8) sysState.system_id = 8;
+    if (sysState.system_id < 1) sysState.system_id = 1;
+    
+    sysState.saveToFlash();
+}
 
 // --- Real-Time Interface Loop updates ---
 void TabSettings::update() {
-    if (!btn_unit_toggle || !l_unit_btn_text || !l_fill_window_text || !btn_well_toggle) return;
+    if (!btn_unit_toggle || !l_unit_btn_text || !l_fill_window_text || !btn_well_toggle || !l_sys_id_text) return;
 
     if (!sysState.use_metric) {
         updateString(l_unit_btn_text, "UNITS: INCHES");
@@ -115,4 +127,11 @@ void TabSettings::update() {
         snprintf(t_buf, sizeof(t_buf), "Zone: UTC %+d hr", sysState.timezone_offset_hours);
         updateString(l_tz_text, t_buf);
     }
+
+    if (l_sys_id_text) {
+        char id_buf[16] = {0};
+        snprintf(id_buf, sizeof(id_buf), " ID: %d", sysState.system_id);
+        updateString(l_sys_id_text, id_buf);
+    }
+
 }

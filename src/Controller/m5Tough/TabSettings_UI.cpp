@@ -25,6 +25,7 @@ void TabSettings::setup(lv_obj_t* tab) {
     build_fill_window_row();
     build_fill_rest_row();
     build_clock_sync_row();
+    build_sys_id_row();
 }
 
 void TabSettings::build_units_row() {
@@ -92,4 +93,19 @@ void TabSettings::build_clock_sync_row() {
     }
 
     l_manual_clock_text = createString(container_manual_clock, "2026-01-01 00:00", 14, 10, 38);
+}
+
+void TabSettings::build_sys_id_row() {
+    createString(scroll_panel, " System ID:", 14, 10, 320);
+    
+    // Create '-' button passing -1 as custom user data
+    createButtonWithTextHandle(scroll_panel, 30, 30, "-", sys_id_adjust_cb, (void*)-1, btn_sys_id_min);
+    lv_obj_set_pos(btn_sys_id_min, 150, 313);
+    
+    // Dynamic numeric text output block
+    l_sys_id_text = createString(scroll_panel, " ID: 1", 14, 190, 320);
+    
+    // Create '+' button passing +1 as custom user data
+    createButtonWithTextHandle(scroll_panel, 30, 30, "+", sys_id_adjust_cb, (void*)+1, btn_sys_id_pls);
+    lv_obj_set_pos(btn_sys_id_pls, 250, 313);
 }

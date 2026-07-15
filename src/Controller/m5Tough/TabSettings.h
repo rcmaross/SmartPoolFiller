@@ -24,6 +24,10 @@ private:
     lv_obj_t* container_timezone = nullptr;
     lv_obj_t* l_tz_text = nullptr;
 
+    lv_obj_t* btn_sys_id_min = nullptr;
+    lv_obj_t* btn_sys_id_pls = nullptr;
+    lv_obj_t* l_sys_id_text = nullptr;
+
     lv_obj_t* container_manual_clock = nullptr;
     lv_obj_t* l_manual_clock_text = nullptr;
 
@@ -35,6 +39,7 @@ private:
     static void ntp_toggle_cb(lv_event_t* e);
     static void tz_adjust_cb(lv_event_t* e);
     static void manual_clock_adjust_cb(lv_event_t* e);
+    static void sys_id_adjust_cb(lv_event_t* e);
 
     // Modular OOP Row Builders
     void build_units_row();
@@ -42,7 +47,8 @@ private:
     void build_fill_window_row();
     void build_fill_rest_row();
     void build_clock_sync_row();
-
+    void build_sys_id_row();
+    
 public:
     void setup(lv_obj_t* tab) override;
     void update() override;

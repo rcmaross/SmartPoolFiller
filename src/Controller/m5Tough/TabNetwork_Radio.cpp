@@ -11,12 +11,14 @@ void TabNetwork::connectNetwork() {
     if (esp_now_init() == ESP_OK) {
         esp_now_deinit();
     }
-    
+    WiFi.macAddress(sysState.mac_address);
+
     WiFi.disconnect();
     delay(50); 
 
     if (sysState.connection_type == 0) {
         WiFi.mode(WIFI_OFF);
+        memset(sysState.mac_address, 0, 6);
         Serial.println(F("[NET ENGINE] Wireless radio powered down."));
         return;
     }
@@ -183,12 +185,20 @@ void TabNetwork::broadcastControlPacket() {
     // =====================================================================
     // 5. PACKET PAYLOAD ASSIGNMENTS (No Elses)
     // =====================================================================
+    outbound_data.system_id = sysState.system_id;
+
     outbound_data.master_command_state = 0; // Default status: Closed
     
     if (core_fill_cycle_active && !well_is_resting) outbound_data.master_command_state = 1; // FILL ACTIVE
     if (core_fill_cycle_active && well_is_resting)  outbound_data.master_command_state = 2; // REST RECOVERY
 
     sysState.active_master_command_state = outbound_data.master_command_state;
+
+    // forcing to 0 until we need them for a poor mans backwards compatibility
+    // if you need a new field use one of these and the receiver will ignore it unless it has been updated.
+    outbound_data.reserved_1 = 0;
+    outbound_data.reserved_2 = 0;
+    outbound_data.reserved_3 = 0;
 
     // Update markers and send
     frame_sequence_counter++;

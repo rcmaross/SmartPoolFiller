@@ -8,6 +8,7 @@ private:
     lv_obj_t* l_inches_delta = nullptr; 
     lv_obj_t* l_live_measure = nullptr;
     lv_obj_t* l_raw_voltage = nullptr;
+    lv_obj_t* l_mac_addr = nullptr;
 
     lv_obj_t* l_valve_state = nullptr;
 
@@ -47,11 +48,12 @@ public:
         l_valve_state  = createString(tab_container, "VALVE: OFFLINE", 14, 110, 75, lv_palette_main(LV_PALETTE_GREY));
         l_live_measure = createString(tab_container, "0.0 in (0.0in)", 14, 110, 92, lv_palette_main(LV_PALETTE_GREY));
         l_raw_voltage  = createString(tab_container, "Sensor: 0.000 V", 14, 110, 110, lv_color_black());
+        l_mac_addr     = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, 110, 128, lv_palette_main(LV_PALETTE_GREY));
     }
 
     void update() override {
         if (!l_measurement || !l_inches_delta || !l_live_measure || !l_raw_voltage || !l_valve_state ||
-            !rect_top_red || !rect_mid_yellow || !rect_bot_blue) return;
+            !rect_top_red || !rect_mid_yellow || !rect_bot_blue || !l_mac_addr) return;
 
         int pct = 0; float poolDepth = 0.0f; const char* status = "";
         sysState.getPoolMetrics(pct, poolDepth, status);
@@ -122,6 +124,17 @@ public:
         String fullLiveStr = "Inst: " + instantDepthStr + " (" + instantDeltaStr + ")";
         updateString(l_live_measure, fullLiveStr.c_str());
 
+        char mac_buffer[] = "MAC: 00:00:00:00:00:00"; // size it properly
+            
+        snprintf(mac_buffer, sizeof(mac_buffer), "MAC: %02X:%02X:%02X:%02X:%02X:%02X", 
+            (int)sysState.mac_address[0],
+            (int)sysState.mac_address[1],
+            (int)sysState.mac_address[2],
+            (int)sysState.mac_address[3],
+            (int)sysState.mac_address[4],
+            (int)sysState.mac_address[5]);
+
+        updateString(l_mac_addr, mac_buffer);
         // Process hardware diagnostics
         if (sysState.ads_hardware_found) {
             String voltStr = "Raw Volt: " + String(sysState.sim_voltage, 3) + " V";
@@ -131,6 +144,8 @@ public:
                 updateString(l_raw_voltage, "LOOP DISCONNECTED", lv_palette_main(LV_PALETTE_RED));
                 updateString(l_measurement, "FAULT", lv_palette_main(LV_PALETTE_RED));
                 updateString(l_inches_delta, "OFFLINE", lv_palette_main(LV_PALETTE_RED));
+                updateString(l_live_measure, "FAULT", lv_palette_main(LV_PALETTE_RED));
+
             } else {
                 String voltStr = "Sim Volt: " + String(sysState.sim_voltage, 3) + " V";
                 updateString(l_raw_voltage, voltStr.c_str(), lv_palette_main(LV_PALETTE_ORANGE));

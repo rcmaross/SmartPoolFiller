@@ -27,19 +27,28 @@ uint32_t totalElapsedTimeSeconds = 0;
 // Override State Registers: 0=AUTO, 1=FORCED_ON, 2=FORCED_OFF
 uint8_t stickLocalOverrideMode = 0; 
 uint8_t incomingMasterCommandState = 0;
+uint8_t controllerMacAddress[6] = {0};
+
+uint8_t mySystemId = 1;
 
 struct __attribute__((packed)) PoolControlPacket {
-    uint8_t master_command_state; 
-    uint8_t stick_override_state; 
+    uint8_t system_id; // 1-8 - for distingushing multiple pairs
+    uint8_t reserved_1;
+    uint16_t reserved_2;
+    uint8_t reserved_3;
+    uint8_t master_command_state; // Master: 0=OFF, 1=FILL, 2=WELL_REST
+    uint8_t stick_override_state; // Stick Feedback: 0=AUTO, 1=FORCED_ON, 2=FORCED_OFF
     uint8_t active_channel;       
-    uint32_t heartbeat_tick; 
+    uint32_t heartbeat_tick;
 };
 
 // --- INTERCEPT PACKETS DROPPING FROM M5TOUGH (v3.x Core Signature) ---
 void onDataReceive(const esp_now_recv_info_t* recvInfo, const uint8_t* data, int len) {
     if (len < (int)sizeof(PoolControlPacket)) return;
     PoolControlPacket* packet = (PoolControlPacket*)data;
-    
+
+    if (packet->system_id != mySystemId) return;
+
     uint8_t master_true_channel = packet->active_channel;
 
     // FIXED: If we catch a bleed frame while scanning an incorrect channel,
@@ -63,12 +72,16 @@ void onDataReceive(const esp_now_recv_info_t* recvInfo, const uint8_t* data, int
         Serial.printf("[NET LOCK] Authentic connection locked to Channel %d. Configuration saved.\n", currentTestChannel);
     }
     
+    const uint8_t* tough_mac = recvInfo->src_addr;
+    memcpy(controllerMacAddress, tough_mac, 6);
+
     // Always feed your safety watchdogs on every valid frame arrival
     lastHeartbeatReceived = millis();
     incomingMasterCommandState = packet->master_command_state;
     
     // Send bidirectional confirmation payload reply back to your M5Tough
     PoolControlPacket confirmation_reply;
+    confirmation_reply.system_id = mySystemId;
     confirmation_reply.master_command_state = incomingMasterCommandState;
     confirmation_reply.stick_override_state = stickLocalOverrideMode;
     confirmation_reply.active_channel = currentTestChannel;
@@ -101,6 +114,7 @@ void setup() {
     Preferences prefs;
     prefs.begin("stick_cfg", true);
     currentTestChannel = prefs.getInt("saved_chan", 1); 
+    mySystemId = prefs.getInt("system_id", 1);
     prefs.end();
     
     Serial.printf("[BOOT] Loaded last valid channel out of flash memory: Channel %d\n", currentTestChannel);
@@ -124,13 +138,21 @@ void loop() {
     M5.update();
     uint32_t nowTime = millis();
 
-    // --- MANAGE OVERRIDE BUTTON PRESSES ---
-    if (M5.BtnA.wasPressed() && M5.BtnB.isPressed()) {
-        stickLocalOverrideMode = 0; // Return control to Tough
-    } else if (M5.BtnB.wasPressed()) {
-        stickLocalOverrideMode = 1; // SIDE BUTTON: FORCE ON
-    } else if (M5.BtnA.wasPressed()) {
-        stickLocalOverrideMode = 2; // FRONT BUTTON: LOCK OFF
+    if (M5.BtnB.wasPressed()) {
+        mySystemId += 1;
+        if (mySystemId > 8)
+            mySystemId = 1;
+
+        Preferences prefs;
+        prefs.begin("stick_cfg", false); // Open in Write mode
+        prefs.putInt("system_id", mySystemId);
+        prefs.end();
+    }
+
+    if (M5.BtnA.wasPressed()) {
+        stickLocalOverrideMode += 1;
+        if (stickLocalOverrideMode > 2)
+            stickLocalOverrideMode = 0;
     }
 
     // --- FREQUENCY CHANNEL-HOPPING SCANNER ENGINE ---
@@ -221,11 +243,20 @@ void loop() {
         M5.Lcd.printf("ON (%ds)    \n", totalElapsedTimeSeconds);
     } else {
         if (incomingMasterCommandState == 2 && stickLocalOverrideMode == 0) {
-            M5.Lcd.setTextColor(TFT_ORANGE, TFT_BLACK); M5.Lcd.print("REST (WELL)\n");
+            M5.Lcd.setTextColor(TFT_ORANGE, TFT_BLACK);
+            M5.Lcd.printf("RESTING\n");
         } else {
-            M5.Lcd.setTextColor(TFT_CYAN, TFT_BLACK); M5.Lcd.print("OFF        \n");
+            M5.Lcd.setTextColor(TFT_CYAN, TFT_BLACK);
+            M5.Lcd.print("OFF        \n");
         }
     }
+    M5.Lcd.setCursor(10, 82);
+    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+    M5.Lcd.printf("SystemId: %d", mySystemId);
+
+    M5.Lcd.setCursor(10, 106);
+    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+    M5.Lcd.printf("Base: %02X:%02X:%02X\n", controllerMacAddress[3], controllerMacAddress[4], controllerMacAddress[5]);
 
     delay(30);
 }

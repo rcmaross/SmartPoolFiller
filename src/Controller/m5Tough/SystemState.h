@@ -12,10 +12,12 @@ struct SystemState {
     bool ads_hardware_found = false;
 
     // --- Existing Network Tracking State ---
+    int system_id = 1; // default system to allow multiple sets on 1 wifi.
     int connection_type = 1;     // 0=OFF, 1=WIFI, 2=AUTO, 3+=MANUAL
     int espnow_channel = 1;      
     String wifi_ssid = "";
     String wifi_pass = "";
+    uint8_t mac_address[6] = {0};
     bool is_peer_connected = false;
 
     // --- Fill Windows & Well Protection State ---
@@ -72,6 +74,8 @@ struct SystemState {
         Preferences prefs;
         prefs.begin("pool_cfg", false);
         
+        prefs.putInt("system_id", system_id);
+
         prefs.putFloat("v_empty", empty_volts);
         prefs.putFloat("v_full", full_volts);
         prefs.putFloat("v_offset", offset_in);
@@ -101,6 +105,8 @@ struct SystemState {
         Preferences prefs;
         prefs.begin("pool_cfg", true);
         
+        system_id = prefs.getInt("system_id", 1);
+
         empty_volts = prefs.getFloat("v_empty", 0.6f);
         full_volts = prefs.getFloat("v_full", 3.0f);
         offset_in = prefs.getFloat("v_offset", 60.0f);
@@ -184,6 +190,10 @@ struct SystemState {
 };
 
 struct __attribute__((packed)) PoolControlPacket {
+    uint8_t system_id; // 1-8 - for distingushing multiple pairs
+    uint8_t reserved_1;
+    uint16_t reserved_2;
+    uint8_t reserved_3;
     uint8_t master_command_state; // Master: 0=OFF, 1=FILL, 2=WELL_REST
     uint8_t stick_override_state; // Stick Feedback: 0=AUTO, 1=FORCED_ON, 2=FORCED_OFF
     uint8_t active_channel;       
