@@ -157,6 +157,6 @@ public:
     }
 
     float getVoltage() override        { return _simulatedVoltage; }
-    bool  isHardwarePresent() override { return false; } 
+    bool  isHardwarePresent() override { return true; }
     bool  isFaulted() override         { return false; } 
 };

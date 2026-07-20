@@ -185,14 +185,19 @@ void hw_loop(unsigned long currentMillis) {
 
     int pct = 0; float depth = 0.0f; const char* status = "";
     sysState.getPoolMetrics(pct, depth, status);
-    
+
     if (sl_status_label) {
         char sb_buf[64];
         if (activeSensor != nullptr && activeSensor->isHardwarePresent() && activeSensor->isFaulted()) {
             snprintf(sb_buf, sizeof(sb_buf), "LEVEL: ERROR | HW LOSS");
         } else {
-            snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1f%s | %s", 
-                     pct, depth, (sysState.use_metric ? "cm" : "in"), status);
+             if (sysState.use_metric) {
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1fcm | %s",
+                     pct, depth * 2.54f, status);
+            } else {
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1fin | %s",
+                     pct, depth, status);
+            }
         }
         lv_label_set_text(sl_status_label, sb_buf);
     }
@@ -241,11 +246,11 @@ void loop() {
     if (currentMillis - lastMenuUpdate >= UI_INTERVAL) {
         lastMenuUpdate = currentMillis;
         
-        if (tabMainDisplay != nullptr)  tabMainDisplay->update();
-        if (tabSettings != nullptr)     tabSettings->update();
-        if (tabCalibration != nullptr)  tabCalibration->update();
-        if (tabNetwork != nullptr)      tabNetwork->update();
-        if (tabHistory != nullptr)      tabHistory->update();
+        if (tabMainDisplay != nullptr)  static_cast<BaseTab*>(tabMainDisplay)->update();
+        if (tabSettings != nullptr)     static_cast<BaseTab*>(tabSettings)->update();
+        if (tabCalibration != nullptr)  static_cast<BaseTab*>(tabCalibration)->update();
+        if (tabNetwork != nullptr)      static_cast<BaseTab*>(tabNetwork)->update();
+        if (tabHistory != nullptr)      static_cast<BaseTab*>(tabHistory)->update();
     }
 
     static uint32_t last_tick = 0;

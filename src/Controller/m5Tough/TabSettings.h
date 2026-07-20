@@ -51,5 +51,5 @@ private:
     
 public:
     void setup(lv_obj_t* tab) override;
-    void update() override;
+    void update(bool force) override;
 };

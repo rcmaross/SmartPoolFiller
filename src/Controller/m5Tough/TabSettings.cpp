@@ -72,7 +72,7 @@ void TabSettings::sys_id_adjust_cb(lv_event_t* e) {
 }
 
 // --- Real-Time Interface Loop updates ---
-void TabSettings::update() {
+void TabSettings::update(bool force) {
     if (!btn_unit_toggle || !l_unit_btn_text || !l_fill_window_text || !btn_well_toggle || !l_sys_id_text) return;
 
     if (!sysState.use_metric) {

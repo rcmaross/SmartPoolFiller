@@ -31,7 +31,7 @@ private:
 
 public:
     void setup(lv_obj_t* tab_container);
-    void update();
+    void update(bool force);
     void connectNetwork();
     void executeDynamicAutoScan();
     const char* getWifiStatusIcon(lv_color_t& out_color);

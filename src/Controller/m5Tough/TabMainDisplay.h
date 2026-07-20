@@ -51,13 +51,12 @@ public:
         l_mac_addr     = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, 110, 128, lv_palette_main(LV_PALETTE_GREY));
     }
 
-    void update() override {
+    void update(bool force) override {
         if (!l_measurement || !l_inches_delta || !l_live_measure || !l_raw_voltage || !l_valve_state ||
             !rect_top_red || !rect_mid_yellow || !rect_bot_blue || !l_mac_addr) return;
 
         int pct = 0; float poolDepth = 0.0f; const char* status = "";
         sysState.getPoolMetrics(pct, poolDepth, status);
-
         int unused_pct = 0; float instantPoolDepth = 0.0f; const char* unused_status = "";
         sysState.getInstantaneousPoolMetrics(unused_pct, instantPoolDepth, unused_status);
 
@@ -101,15 +100,15 @@ public:
             else                               instantDeltaStr = "0.0 in";
 
         } else {
-            depthStr = String(poolDepth, 1) + " cm";
-            float targetCm = sysState.offset_in * 2.54f;
-            float cmFromFull = poolDepth - targetCm;
+            float cmPoolDepth = sysState.convertFromInch(poolDepth);
+            depthStr = String(cmPoolDepth, 1) + " cm";
+            float cmFromFull = cmPoolDepth - sysState.convertFromInch(sysState.offset_in);
             if (cmFromFull > 0.1f)             deltaStr = "+" + String(cmFromFull, 1) + " cm";
             else if (cmFromFull < -0.1f)       deltaStr = String(cmFromFull, 1) + " cm";
             else                               deltaStr = "0.0 cm";
-
-            instantDepthStr = String(instantPoolDepth, 1) + " cm";
-            cmFromFull = instantPoolDepth - targetCm;
+            float cmInstantPoolDepth = sysState.convertFromInch(instantPoolDepth);
+            instantDepthStr = String(cmInstantPoolDepth, 1) + " cm";
+            cmFromFull = cmInstantPoolDepth - sysState.convertFromInch(sysState.offset_in);
             if (cmFromFull > 0.1f)             instantDeltaStr = "+" + String(cmFromFull, 1) + " cm";
             else if (cmFromFull < -0.1f)       instantDeltaStr = String(cmFromFull, 1) + " cm";
             else                               instantDeltaStr = "0.0 cm";

@@ -216,11 +216,4 @@ void TabNetwork::broadcastControlPacket() {
     }
     
     esp_err_t result = esp_now_send(broadcast_mac, (uint8_t*)&outbound_data, sizeof(outbound_data));
-    
-    if (result == ESP_OK) {
-        Serial.print("."); // Safe lightweight serial debug heartbeat marker
-        if (frame_sequence_counter % 60 == 0) Serial.println();
-    } else {
-        Serial.print("X");
-    }
 }

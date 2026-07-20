@@ -6,7 +6,7 @@ public:
     virtual ~BaseTab() = default;
     
     virtual void setup(lv_obj_t* tab_container) = 0;
-    virtual void update() = 0;
+    virtual void update(bool force=false) = 0;
 
 protected:
     // =====================================================================

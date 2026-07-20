@@ -116,7 +116,7 @@ public:
         last_known_unit_mode = !sysState.use_metric; 
     }
 
-    void update() override {
+    void update(bool force) override {
         if (!l_empty || !l_full || !l_offset ||
             !btn_coarse_minus || !btn_fine_minus || !btn_fine_plus || !btn_coarse_plus ||
             !l_btn_coarse_minus || !l_btn_fine_minus || !l_btn_fine_plus || !l_btn_coarse_plus) return;

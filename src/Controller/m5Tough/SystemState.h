@@ -34,7 +34,7 @@ struct SystemState {
     bool use_24hr_format = false;
 
     // scale time for testing.  perhaps someday we can make this configurable?
-    //uint32_t time_scale_factor = 360; // 1hr = 10s 
+    //uint32_t time_scale_factor = 360; // 1hr = 10s
     uint32_t time_scale_factor = 1; //real world
     float fill_deadband_trigger = 0.25f; 
 
@@ -157,9 +157,6 @@ struct SystemState {
         out_pct = (int)pct_f;
 
         out_depth = (pct_f / 100.0f) * offset_in;
-        if (use_metric)
-            out_depth *= 2.54f;
-
         out_status = getPoolStatus(out_pct);
     }
 
@@ -169,8 +166,6 @@ struct SystemState {
         out_depth = getRollingOneHourDepthAverage();
 
         float offset = offset_in;
-        if (use_metric)
-            offset *= 2.54f;
         pct_f = ((out_depth)/offset) * 100.0f;
         out_pct = (int)pct_f;
 
@@ -186,6 +181,27 @@ struct SystemState {
         }
 
         history_write_index = 0;
+    }
+
+    int convertFromInch(int value){
+        if (use_metric){
+            return((int)((float)value * 2.54f));
+        }
+        return(value);
+    }
+
+    float convertFromInch(float value){
+        if (use_metric){
+            return(value * 2.54f);
+        }
+        return(value);
+    }
+
+    String units() {
+        if (use_metric) {
+            return("cm");
+        }
+        return("in");
     }
 };
 

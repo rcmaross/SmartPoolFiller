@@ -28,7 +28,7 @@ void TabNetwork::keyboard_action_done_cb(lv_event_t* e) {
     if (thiz->ta_wifi_pass) lv_obj_clear_state(thiz->ta_wifi_pass, LV_STATE_FOCUSED);
 }
 
-void TabNetwork::update() {
+void TabNetwork::update(bool force) {
     if (!btn_espnow_mode || !l_espnow_text || !l_peer_status || !container_wifi_group) return;
 
     char m_str[32] = {0};
