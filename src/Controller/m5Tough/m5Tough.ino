@@ -18,8 +18,9 @@
 #include "TabSettings.h"
 #include "TabNetwork.h"
 #include "TabHistory.h"
+#include "StorageDisk.h"
 
-SystemState sysState;
+SystemState *sysState = nullptr;
 PoolSensor* activeSensor = nullptr; 
 lv_obj_t* sl_status_label = nullptr;
 lv_obj_t* sl_wifi_icon_label = nullptr; 
@@ -33,6 +34,7 @@ TabCalibration *tabCalibration = nullptr;
 TabNetwork *tabNetwork = nullptr;
 TabSettings *tabSettings = nullptr;
 TabHistory *tabHistory = nullptr;
+StorageDisk *storageDisk = nullptr;
 
 unsigned long lastHardwareSample = 0;
 const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
@@ -71,7 +73,7 @@ void WiFiEventTracker(WiFiEvent_t event, WiFiEventInfo_t info) {
             Serial.println(WiFi.localIP().toString());
             if (WiFi.status() == WL_CONNECTED) {
                 uint8_t currentAPChannel = WiFi.channel();
-                if (currentAPChannel > 0) sysState.espnow_channel = currentAPChannel;
+                if (currentAPChannel > 0) sysState->espnow_channel = currentAPChannel;
             }
             break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -150,48 +152,41 @@ void setup_ui() {
 }
 
 void hw_loop(unsigned long currentMillis) {
+
+    auto dt = M5.Rtc.getDateTime();
+
+    // read sensor every second
     if (activeSensor != nullptr) {
         activeSensor->update(); 
-        sysState.sim_voltage = activeSensor->getVoltage();
-        sysState.ads_hardware_found = activeSensor->isHardwarePresent() && !activeSensor->isFaulted();
+        sysState->sim_voltage = activeSensor->getVoltage();
+        sysState->ads_hardware_found = activeSensor->isHardwarePresent() && !activeSensor->isFaulted();
     }
 
-    // =====================================================================
-    // INTEGRATED: TIME-SCALED HISTORY ACCUMULATOR
-    // =====================================================================
-    static uint32_t last_history_sample_time = 0;
-    
-    // Real-world sample window is 60,000ms (1 min).
-    uint32_t scaled_sample_interval = 60000 / sysState.time_scale_factor;
-
-    if (currentMillis - last_history_sample_time >= scaled_sample_interval) {
-        last_history_sample_time = currentMillis;
-        
-        int pct; float instant_depth; const char* status;
-        sysState.getInstantaneousPoolMetrics(pct, instant_depth, status);
-
-        // Append instant depth readings cleanly into the encapsulated struct history buffer
-        sysState.hourly_depth_history[sysState.history_write_index] = instant_depth;
-        sysState.history_write_index++;
-        
-        if (sysState.history_write_index >= 60) {
-            sysState.history_write_index = 0;
-        }
+    int pct; float instant_depth; float depth; const char* status;
+   
+    // keep 60 samples for average depth calculation.
+    sysState->getInstantaneousPoolMetrics(pct, instant_depth, status);
+    sysState->depth_history[sysState->history_write_index] = instant_depth;
+    sysState->history_write_index++;
+    if (sysState->history_write_index >= 60) {
+        sysState->history_write_index = 0;
     }
 
+    // send an update to the receiver once a second
     if (tabNetwork != nullptr) {
-        tabNetwork->broadcastControlPacket(); // Triggers the radio directly on Core 1
+        tabNetwork->broadcastControlPacket(); 
     }
 
-    int pct = 0; float depth = 0.0f; const char* status = "";
-    sysState.getPoolMetrics(pct, depth, status);
+    // recalculate the average pool depth
+    sysState->getPoolMetrics(pct, depth, status);
 
+    //update the status line on the top of the screen.
     if (sl_status_label) {
         char sb_buf[64];
         if (activeSensor != nullptr && activeSensor->isHardwarePresent() && activeSensor->isFaulted()) {
             snprintf(sb_buf, sizeof(sb_buf), "LEVEL: ERROR | HW LOSS");
         } else {
-             if (sysState.use_metric) {
+             if (sysState->use_metric) {
                 snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1fcm | %s",
                      pct, depth * 2.54f, status);
             } else {
@@ -202,14 +197,13 @@ void hw_loop(unsigned long currentMillis) {
         lv_label_set_text(sl_status_label, sb_buf);
     }
 
-    // --- REAL-TIME HARDWARE RTC CENTER CLOCK CONTROLLER ---
     if (sl_time_label) {
         time_t raw_time = time(nullptr);
         struct tm* local_time = localtime(&raw_time);
 
         char clk_buf[16] = {0}; 
         
-        if (sysState.use_24hr_format) {
+        if (sysState->use_24hr_format) {
             // Standard 24-Hour Military Layout (e.g., 14:05)
             snprintf(clk_buf, sizeof(clk_buf), "%02d:%02d", local_time->tm_hour, local_time->tm_min);
         } else {
@@ -266,16 +260,54 @@ void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     M5.Power.setExtOutput(true); 
-
+    
     Serial.begin(115200); 
     
-    sysState.loadFromFlash();
+    sysState = new SystemState();
+
+    setenv("TZ", sysState->tz_posix_rule.c_str(), 1);
+    tzset(); // Force the system to update its local time offsets right now
+
+    sysState->loadFromFlash();
+   
+    storageDisk = new StorageDisk();
+    storageDisk->initMicroSDCard();
+
+    if (M5.Rtc.isEnabled()) {
+        auto dt = M5.Rtc.getDateTime();
+
+        Serial.printf("[HARDWARE RTC INITIAL] Date: %04d-%02d-%02d | Time: %02d:%02d:%02d\n",
+                dt.date.year,
+                dt.date.month,
+                dt.date.date,
+                dt.time.hours,
+                dt.time.minutes,
+                dt.time.seconds);
+
+        // This sets the internal C++ time structures instantly on frame zero!
+        struct tm tm_sync;
+        tm_sync.tm_year = dt.date.year - 1900;
+        tm_sync.tm_mon  = dt.date.month - 1;
+        tm_sync.tm_mday = dt.date.date;
+        tm_sync.tm_hour = dt.time.hours;
+        tm_sync.tm_min  = dt.time.minutes;
+        tm_sync.tm_sec  = dt.time.seconds;
+        tm_sync.tm_isdst = -1;
+        
+        time_t t = mktime(&tm_sync);
+        struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+        settimeofday(&tv, NULL);
+        
+        Serial.println("[SYSTEM] Internal clock synchronized from battery-backed hardware RTC!");
+    }
+
 
     tabMainDisplay = new TabMainDisplay();
     tabSettings    = new TabSettings();
-    tabCalibration = new TabCalibration();
+    tabCalibration = new TabCalibration(storageDisk);
     tabNetwork     = new TabNetwork();
-    tabHistory     = new TabHistory();
+    tabHistory     = new TabHistory(storageDisk);
+
 
     Wire.begin(33, 32);
     Wire.setClock(10000); 
@@ -290,9 +322,10 @@ void setup() {
         activeSensor = new SimulatedSerialSensor();
     }
     activeSensor->begin();
-    sysState.sim_voltage = activeSensor->getVoltage();
+    sysState->sim_voltage = activeSensor->getVoltage();
 
-    sysState.initHistory();
+
+    sysState->initHistory();
 
     WiFi.onEvent(WiFiEventTracker);
 

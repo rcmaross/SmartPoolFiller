@@ -4,36 +4,36 @@
 
 // --- Static Callback Logical Routines ---
 void TabSettings::unit_toggle_cb(lv_event_t* e) {
-    sysState.use_metric = !sysState.use_metric;
-    sysState.saveToFlash();
+    sysState->use_metric = !sysState->use_metric;
+    sysState->saveToFlash();
 }
 
 void TabSettings::fill_window_adjust_cb(lv_event_t* e) {
     intptr_t mod = (intptr_t)lv_event_get_user_data(e);
-    if (mod == 1)       sysState.allow_fill_start_hour = (sysState.allow_fill_start_hour + 1) % 24;
-    else if (mod == -1) sysState.allow_fill_start_hour = (sysState.allow_fill_start_hour == 0) ? 23 : sysState.allow_fill_start_hour - 1;
-    else if (mod == 2)  sysState.allow_fill_end_hour = (sysState.allow_fill_end_hour + 1) % 24;
-    else if (mod == -2) sysState.allow_fill_end_hour = (sysState.allow_fill_end_hour == 0) ? 23 : sysState.allow_fill_end_hour - 1;
-    sysState.saveToFlash();
+    if (mod == 1)       sysState->allow_fill_start_hour = (sysState->allow_fill_start_hour + 1) % 24;
+    else if (mod == -1) sysState->allow_fill_start_hour = (sysState->allow_fill_start_hour == 0) ? 23 : sysState->allow_fill_start_hour - 1;
+    else if (mod == 2)  sysState->allow_fill_end_hour = (sysState->allow_fill_end_hour + 1) % 24;
+    else if (mod == -2) sysState->allow_fill_end_hour = (sysState->allow_fill_end_hour == 0) ? 23 : sysState->allow_fill_end_hour - 1;
+    sysState->saveToFlash();
 }
 
 void TabSettings::well_toggle_cb(lv_event_t* e) {
-    sysState.well_rest_selection = (sysState.well_rest_selection + 1) % 4;
-    sysState.well_mode_active = (sysState.well_rest_selection > 0);
-    sysState.saveToFlash();
+    sysState->well_rest_selection = (sysState->well_rest_selection + 1) % 4;
+    sysState->well_mode_active = (sysState->well_rest_selection > 0);
+    sysState->saveToFlash();
 }
 
 void TabSettings::ntp_toggle_cb(lv_event_t* e) {
-    sysState.ntp_sync_active = !sysState.ntp_sync_active;
-    sysState.saveToFlash();
+    sysState->ntp_sync_active = !sysState->ntp_sync_active;
+    sysState->saveToFlash();
 }
 
 void TabSettings::tz_adjust_cb(lv_event_t* e) {
     intptr_t mod = (intptr_t)lv_event_get_user_data(e);
-    sysState.timezone_offset_hours += (int)mod;
-    if (sysState.timezone_offset_hours > 14)  sysState.timezone_offset_hours = 14;
-    if (sysState.timezone_offset_hours < -12) sysState.timezone_offset_hours = -12;
-    sysState.saveToFlash();
+    sysState->timezone_offset_hours += (int)mod;
+    if (sysState->timezone_offset_hours > 14)  sysState->timezone_offset_hours = 14;
+    if (sysState->timezone_offset_hours < -12) sysState->timezone_offset_hours = -12;
+    sysState->saveToFlash();
 }
 
 void TabSettings::manual_clock_adjust_cb(lv_event_t* e) {
@@ -55,27 +55,27 @@ void TabSettings::manual_clock_adjust_cb(lv_event_t* e) {
 }
 
 void TabSettings::time_format_toggle_cb(lv_event_t* e) {
-    sysState.use_24hr_format = !sysState.use_24hr_format;
-    sysState.saveToFlash();
+    sysState->use_24hr_format = !sysState->use_24hr_format;
+    sysState->saveToFlash();
 }
 
 void TabSettings::sys_id_adjust_cb(lv_event_t* e) {
     intptr_t mod = (intptr_t)lv_event_get_user_data(e);
     
-    sysState.system_id += (int)mod;
+    sysState->system_id += (int)mod;
     
     // Bind constraints between system 1 and 8
-    if (sysState.system_id > 8) sysState.system_id = 8;
-    if (sysState.system_id < 1) sysState.system_id = 1;
+    if (sysState->system_id > 8) sysState->system_id = 8;
+    if (sysState->system_id < 1) sysState->system_id = 1;
     
-    sysState.saveToFlash();
+    sysState->saveToFlash();
 }
 
 // --- Real-Time Interface Loop updates ---
 void TabSettings::update(bool force) {
     if (!btn_unit_toggle || !l_unit_btn_text || !l_fill_window_text || !btn_well_toggle || !l_sys_id_text) return;
 
-    if (!sysState.use_metric) {
+    if (!sysState->use_metric) {
         updateString(l_unit_btn_text, "UNITS: INCHES");
         lv_obj_set_style_bg_color(btn_unit_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
     } else {
@@ -84,7 +84,7 @@ void TabSettings::update(bool force) {
     }
     
     if (btn_time_format_toggle && l_time_format_text) {
-        if (!sysState.use_24hr_format) {
+        if (!sysState->use_24hr_format) {
             updateString(l_time_format_text, "FORMAT: 12 HR");
             lv_obj_set_style_bg_color(btn_time_format_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
         } else {
@@ -94,20 +94,20 @@ void TabSettings::update(bool force) {
     }
 
     char f_buf[32] = {0}; 
-    snprintf(f_buf, sizeof(f_buf), "%02d:00 to %02d:00", sysState.allow_fill_start_hour, sysState.allow_fill_end_hour);
+    snprintf(f_buf, sizeof(f_buf), "%02d:00 to %02d:00", sysState->allow_fill_start_hour, sysState->allow_fill_end_hour);
     updateString(l_fill_window_text, f_buf);
 
-    if (sysState.well_rest_selection == 0) {
+    if (sysState->well_rest_selection == 0) {
         updateString(l_well_btn_text, "REST: NONE (CITY)");
         lv_obj_set_style_bg_color(btn_well_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
     } else {
         char w_buf[32] = {0};
-        snprintf(w_buf, sizeof(w_buf), "REST: %d MINS", sysState.well_rest_selection * 5);
+        snprintf(w_buf, sizeof(w_buf), "REST: %d MINS", sysState->well_rest_selection * 5);
         updateString(l_well_btn_text, w_buf);
         lv_obj_set_style_bg_color(btn_well_toggle, lv_palette_main(LV_PALETTE_BROWN), 0);
     }
 
-    if (!sysState.ntp_sync_active) {
+    if (!sysState->ntp_sync_active) {
         updateString(l_ntp_btn_text, "LOCAL RTC");
         lv_obj_set_style_bg_color(btn_ntp_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
         lv_obj_add_flag(container_timezone, LV_OBJ_FLAG_HIDDEN);
@@ -124,13 +124,13 @@ void TabSettings::update(bool force) {
         lv_obj_add_flag(container_manual_clock, LV_OBJ_FLAG_HIDDEN);
 
         char t_buf[32] = {0}; 
-        snprintf(t_buf, sizeof(t_buf), "Zone: UTC %+d hr", sysState.timezone_offset_hours);
+        snprintf(t_buf, sizeof(t_buf), "Zone: UTC %+d hr", sysState->timezone_offset_hours);
         updateString(l_tz_text, t_buf);
     }
 
     if (l_sys_id_text) {
         char id_buf[16] = {0};
-        snprintf(id_buf, sizeof(id_buf), " ID: %d", sysState.system_id);
+        snprintf(id_buf, sizeof(id_buf), " ID: %d", sysState->system_id);
         updateString(l_sys_id_text, id_buf);
     }
 

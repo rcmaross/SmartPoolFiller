@@ -5,6 +5,7 @@
 
 class TabHistory : public BaseTab {
 private:
+    StorageDisk *storageDisk;
     lv_obj_t* chart_trends = nullptr;
     lv_obj_t* scale_left = nullptr;
     lv_obj_t* scale_right = nullptr;
@@ -31,14 +32,18 @@ private:
 
     const int Y_AXIS_PADDING = 30;
 public:
+    TabHistory(StorageDisk *storageDisk) {
+        this->storageDisk = storageDisk;
+    }
+
     void rescaleLeftAxis(int min_val, int max_val) {
         if (!chart_trends || !scale_left) return;
 
-        int data_span = sysState.convertFromInch(max_val - min_val);
+        int data_span = sysState->convertFromInch(max_val - min_val);
         int step = 100; // Fallback default step
-        int dynamic_high = sysState.convertFromInch(max_val);
+        int dynamic_high = sysState->convertFromInch(max_val);
 
-        if (sysState.use_metric) {
+        if (sysState->use_metric) {
             // --- METRIC MODE RES BINS (Scaled by 100 -> Hundredths of a cm) ---
             if (data_span <= 2100)      step = 700;  // ~1/4" equiv -> 7.00 cm steps (Total Span = 21.00 cm)
             else if (data_span <= 3900) step = 1300; // ~1/2" equiv -> 13.00 cm steps (Total Span = 39.00 cm)
@@ -137,7 +142,7 @@ public:
         lv_chart_set_point_count(chart_trends, 24); 
 
         // hone in on full + 1 to full - 2 inches
-        int initDepth = sysState.offset_in * 100;
+        int initDepth = sysState->offset_in * 100;
 
         // Initialize master historical data logs to a standard baseline (100% full, 0 run mins)
         for (int i = 0; i < 168; i++) {
@@ -196,7 +201,7 @@ public:
         last_chart_tick = millis();
         lv_chart_refresh(chart_trends);
 
-        last_known_unit_mode = !sysState.use_metric;
+        last_known_unit_mode = !sysState->use_metric;
 
         // force an update to get the chart created
         update(true);
@@ -208,22 +213,31 @@ public:
         uint32_t now = millis();
 
         // 1-Hour Step Window (Real Time = 3,600,000ms. Accelerated 360x Mode = exactly 10 seconds) [INDEX]
-        uint32_t scaled_chart_interval = 3600000 / sysState.time_scale_factor;
+        uint32_t scaled_chart_interval = 3600000 / sysState->time_scale_factor;
 
         // force this to happen now if there is a units change
-        if (force || (sysState.use_metric != last_known_unit_mode) || (now - last_chart_tick >= scaled_chart_interval)) {
-            last_known_unit_mode = sysState.use_metric;
+        if (force || (sysState->use_metric != last_known_unit_mode) || (now - last_chart_tick >= scaled_chart_interval)) {
+            last_known_unit_mode = sysState->use_metric;
             last_chart_tick = now;
 
-            int pct = 0; float depth = 0.0f; const char* status = "";
-            sysState.getPoolMetrics(pct, depth, status);
+            int pct = 0; float depth = 0.0f; float instant_depth; const char* status = "";
+            sysState->getPoolMetrics(pct, depth, status);
+            sysState->getInstantaneousPoolMetrics(pct, instant_depth, status);
+            time_t raw_time = time(nullptr);
+            struct tm* local_time = localtime(&raw_time);
+            int year = local_time->tm_year + 1900;
+            char time_str[20];
+            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M", local_time);
 
             // Calculate true actual runtime minutes accumulated over this exact time window slice.
             // (live_run_seconds / 60) gives raw minutes. Multiply by scale factor to adjust density values.
-            float true_window_run_minutes = ((float)sysState.live_valve_run_seconds_current_hour / 60.0f) * sysState.time_scale_factor;
+            float true_window_run_minutes = ((float)sysState->live_valve_run_seconds_current_hour / 60.0f) * sysState->time_scale_factor;
             if (true_window_run_minutes > 60.0f) true_window_run_minutes = 60.0f; // Maximum hour constraint
 
             int depth_i = (int)(depth * 100.0f); // multiply by 100 to make a psuedo float
+
+            if (year >= 2025)
+                storageDisk->logHourlyRowToSD(year, time_str, sysState->system_id, depth, instant_depth, true_window_run_minutes, sysState->active_master_command_state);
 
             // A. Overwrite the single oldest slot in the master 168-hour history log [INDEX]
             level_history_log[ring_write_index] = depth_i;
@@ -231,10 +245,10 @@ public:
 
             // PADDING SERIAL PRINT DEBUG LINES:
             Serial.printf("[HIST LOG] Slot %d saved -> Level: %f, Actual Valve Run: %d mins (Raw Loop Accumulator: %d seconds)\n", 
-                          ring_write_index, depth, (int32_t)true_window_run_minutes, sysState.live_valve_run_seconds_current_hour);
+                          ring_write_index, depth, (int32_t)true_window_run_minutes, sysState->live_valve_run_seconds_current_hour);
 
             // Instantly clear the global real-time accumulator block for the next hour window pass
-            sysState.live_valve_run_seconds_current_hour = 0;
+            sysState->live_valve_run_seconds_current_hour = 0;
 
             // Advance the rolling write cursor pointer, wrapping back around cleanly at 168 [INDEX]
             ring_write_index = (ring_write_index + 1) % 168;
@@ -248,7 +262,7 @@ public:
                 if (level != LV_CHART_POINT_NONE) {
                     if (level < min_depth) min_depth = level;
                     if (level > max_depth) max_depth = level;
-                    level_chart_data[i] = sysState.convertFromInch(level);
+                    level_chart_data[i] = sysState->convertFromInch(level);
                     valve_chart_data[i] = valve_history_log[lookback_idx];
                     valid_results++;
                 }

@@ -19,8 +19,8 @@ void TabNetwork::keyboard_action_done_cb(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
     if (code == LV_EVENT_READY) {
         const char* enteredPass = lv_textarea_get_text(thiz->ta_wifi_pass);
-        sysState.wifi_pass = enteredPass ? String(enteredPass) : String("");
-        sysState.saveToFlash();
+        sysState->wifi_pass = enteredPass ? String(enteredPass) : String("");
+        sysState->saveToFlash();
         thiz->connectNetwork(); 
     }
 
@@ -35,13 +35,13 @@ void TabNetwork::update(bool force) {
     char status_str[64] = {0}; // Allocating 64 bytes to accommodate color tags
 
     // 1. Maintain clean, original text layouts for your Master Mode button
-    if (sysState.connection_type == 0) {
+    if (sysState->connection_type == 0) {
         snprintf(m_str, sizeof(m_str), "Mode: OFF");
         lv_obj_add_flag(container_wifi_group, LV_OBJ_FLAG_HIDDEN);
         
         snprintf(status_str, sizeof(status_str), "PEER: NONE");
     } 
-    else if (sysState.connection_type == 1) { 
+    else if (sysState->connection_type == 1) { 
         snprintf(m_str, sizeof(m_str), "Mode: WIFI");
         lv_obj_remove_flag(container_wifi_group, LV_OBJ_FLAG_HIDDEN);
 
@@ -66,14 +66,14 @@ void TabNetwork::update(bool force) {
             snprintf(status_str, sizeof(status_str), "RSSI: #FF0000 SEARCHING#");
         }
     } 
-    else if (sysState.connection_type == 2) {
+    else if (sysState->connection_type == 2) {
         snprintf(m_str, sizeof(m_str), "Mode: AUTO");
         lv_obj_add_flag(container_wifi_group, LV_OBJ_FLAG_HIDDEN);
         
         snprintf(status_str, sizeof(status_str), "PEER: AUTO");
     } 
     else {
-        snprintf(m_str, sizeof(m_str), "Mode: CH %d", sysState.espnow_channel);
+        snprintf(m_str, sizeof(m_str), "Mode: CH %d", sysState->espnow_channel);
         lv_obj_add_flag(container_wifi_group, LV_OBJ_FLAG_HIDDEN);
 
         // For ESP-NOW channels, revert back to using your helper icon logic
@@ -88,7 +88,7 @@ void TabNetwork::update(bool force) {
     lv_label_set_text(l_espnow_text, m_str); 
 
     // Write the color-coded RSSI to the secondary status label (only applied in WIFI mode)
-    if (sysState.connection_type <= 2) {
+    if (sysState->connection_type <= 2) {
         lv_label_set_text(l_peer_status, status_str);
         // Reset default text color to black/white so it doesn't leak out of the color tags
         lv_obj_set_style_text_color(l_peer_status, lv_color_black(), 0); 
@@ -110,9 +110,9 @@ void TabNetwork::show_pass_toggle_cb(lv_event_t* e) {
 
 const char* TabNetwork::getWifiStatusIcon(lv_color_t& out_color) {
     out_color = lv_palette_main(LV_PALETTE_GREY);
-    if (sysState.connection_type == 0) return "OFF";
-    if (sysState.connection_type == 2) { out_color = lv_palette_main(LV_PALETTE_BLUE); return "AUTO"; }
-    if (sysState.connection_type >= 3) { out_color = lv_palette_main(LV_PALETTE_BLUE); return "MESH"; }
+    if (sysState->connection_type == 0) return "OFF";
+    if (sysState->connection_type == 2) { out_color = lv_palette_main(LV_PALETTE_BLUE); return "AUTO"; }
+    if (sysState->connection_type >= 3) { out_color = lv_palette_main(LV_PALETTE_BLUE); return "MESH"; }
 
     wl_status_t wifi_status = WiFi.status();
     if (wifi_status == WL_CONNECTED) {

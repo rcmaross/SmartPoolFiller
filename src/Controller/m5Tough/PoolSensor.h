@@ -142,7 +142,7 @@ public:
 
     void begin() override {
         Serial.println(F("[SENSOR] Simulated Interface Engine Mounted. Ready for voltages:"));
-        _simulatedVoltage = sysState.full_volts; 
+        _simulatedVoltage = sysState->full_volts;
     }
 
     void update() override {

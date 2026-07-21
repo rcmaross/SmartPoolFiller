@@ -3,7 +3,12 @@
 #include <Preferences.h>
 
 struct SystemState {
-    // --- Existing Hardware & Calibration State ---
+    // scale time for testing.  perhaps someday we can make this configurable?
+    //uint32_t time_scale_factor = 360; // 1hr = 10s
+    uint32_t time_scale_factor = 1; //real world
+    float fill_deadband_trigger = 0.25f;
+
+   // --- Existing Hardware & Calibration State ---
     float empty_volts = 0.6f;
     float full_volts = 3.0f;
     float offset_in = 60.0f;
@@ -33,13 +38,8 @@ struct SystemState {
     String tz_posix_rule = "EST5EDT,M3.2.0,M11.1.0"; 
     bool use_24hr_format = false;
 
-    // scale time for testing.  perhaps someday we can make this configurable?
-    //uint32_t time_scale_factor = 360; // 1hr = 10s
-    uint32_t time_scale_factor = 1; //real world
-    float fill_deadband_trigger = 0.25f; 
-
     // 60-sample historical depth tracker array (representing 60 sequential minutes)
-    float hourly_depth_history[60] = {0.0f};
+    float depth_history[60] = {0.0f};
     int history_write_index = 0;
     // Tracks active physical valve open seconds in real-time
     uint32_t live_valve_run_seconds_current_hour = 0;
@@ -48,11 +48,27 @@ struct SystemState {
     uint8_t active_master_command_state = 0; 
 
     // Helper method to pull the smoothed rolling historical depth average
-    float getRollingOneHourDepthAverage() {
+    float getRollingOneHourDepthAverageOld() {
         float sum = 0.0f;
-        for (int i = 0; i < 60; i++) sum += hourly_depth_history[i];
+        for (int i = 0; i < 60; i++) sum += depth_history[i];
         return sum / 60.0f;
     }
+    float getRollingOneHourDepthAverage() {
+        float sorted[60];
+        memcpy(sorted, depth_history, sizeof(sorted));
+
+        for (int i = 0; i < 59; i++) {
+            for (int j = 0; j < 59 - i; j++) {
+                if (sorted[j] > sorted[j + 1]) {
+                    float temp = sorted[j];
+                    sorted[j] = sorted[j + 1];
+                    sorted[j + 1] = temp;
+                }
+            }
+        }
+        return sorted[30];
+    }
+
 
     bool timeAllowed() {
         // Fetch local time coordinates
@@ -177,7 +193,7 @@ struct SystemState {
         getInstantaneousPoolMetrics(init_pct, init_depth, init_status);
 
         for (int i = 0; i < 60; i++) {
-            hourly_depth_history[i] = init_depth;
+            depth_history[i] = init_depth;
         }
 
         history_write_index = 0;
@@ -216,4 +232,4 @@ struct __attribute__((packed)) PoolControlPacket {
     uint32_t heartbeat_tick;      
 };
 
-extern SystemState sysState;
+extern SystemState *sysState;

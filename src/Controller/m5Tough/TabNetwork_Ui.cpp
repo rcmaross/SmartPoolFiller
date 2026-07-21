@@ -7,16 +7,16 @@ void TabNetwork::espnow_cycle_cb(lv_event_t* e) {
     TabNetwork* thiz = (TabNetwork*)lv_event_get_user_data(e);
     if (!thiz) return;
     
-    if (sysState.connection_type == 1)      sysState.connection_type = 2; // WIFI -> AUTO
-    else if (sysState.connection_type == 2) { sysState.connection_type = 3; sysState.espnow_channel = 1; } // AUTO -> CH 1
-    else if (sysState.connection_type >= 3) {
-        sysState.espnow_channel++;
-        if (sysState.espnow_channel > 11) { sysState.connection_type = 0; sysState.espnow_channel = 1; } // CH 11 -> OFF
+    if (sysState->connection_type == 1)      sysState->connection_type = 2; // WIFI -> AUTO
+    else if (sysState->connection_type == 2) { sysState->connection_type = 3; sysState->espnow_channel = 1; } // AUTO -> CH 1
+    else if (sysState->connection_type >= 3) {
+        sysState->espnow_channel++;
+        if (sysState->espnow_channel > 11) { sysState->connection_type = 0; sysState->espnow_channel = 1; } // CH 11 -> OFF
     } else {
-        sysState.connection_type = 1; // OFF -> WIFI
+        sysState->connection_type = 1; // OFF -> WIFI
     }
     
-    sysState.saveToFlash();
+    sysState->saveToFlash();
     thiz->connectNetwork(); 
 }
 
@@ -29,7 +29,7 @@ void TabNetwork::network_option_select_cb(lv_event_t* e) {
     if (!label) return;
 
     const char* selectedName = lv_label_get_text(label);
-    sysState.wifi_ssid = String(selectedName);
+    sysState->wifi_ssid = String(selectedName);
 
     // Context-safely update the text using the button handle passed from user data
     lv_obj_t* dd_label = lv_obj_get_child(thiz->dd_wifi_ssids, 0);
@@ -107,7 +107,7 @@ void TabNetwork::setup(lv_obj_t* tab_container) {
 
     // Row 2: SSID Network Scanner Activation Selection Row
     createString(container_wifi_group, "SSID:", 14, 5, 10);
-    const char* init_ssid = (sysState.wifi_ssid.length() > 0) ? sysState.wifi_ssid.c_str() : "Tap to Scan Networks";
+    const char* init_ssid = (sysState->wifi_ssid.length() > 0) ? sysState->wifi_ssid.c_str() : "Tap to Scan Networks";
     
     // FIXED: Formatted correctly down here inside the non-static member setup loop!
     lv_obj_t* dd_label = createButtonWithTextHandle(container_wifi_group, 190, 32, init_ssid, wifi_dropdown_click_cb, this, dd_wifi_ssids);
@@ -122,8 +122,8 @@ void TabNetwork::setup(lv_obj_t* tab_container) {
     lv_textarea_set_placeholder_text(ta_wifi_pass, "Enter Key");
     lv_obj_add_event_cb(ta_wifi_pass, password_field_focus_cb, LV_EVENT_FOCUSED, this);
     
-    if (sysState.wifi_pass.length() > 0) {
-        lv_textarea_set_text(ta_wifi_pass, sysState.wifi_pass.c_str());
+    if (sysState->wifi_pass.length() > 0) {
+        lv_textarea_set_text(ta_wifi_pass, sysState->wifi_pass.c_str());
     }
 
     // Row 4: Security Masking Mask/Unmask Toggle Latch Checkbox

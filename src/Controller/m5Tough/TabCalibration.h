@@ -1,160 +1,208 @@
 #pragma once
 #include "BaseTab.h"
 #include "SystemState.h"
+#include "StorageDisk.h"
 #include <stdio.h>
 
 class TabCalibration : public BaseTab {
 private:
+    StorageDisk *storageDisk;
     lv_obj_t* l_empty = nullptr;
     lv_obj_t* l_full = nullptr;
     lv_obj_t* l_offset = nullptr;
 
-    // Interactive element container mapping handles
     lv_obj_t* btn_coarse_minus = nullptr;
     lv_obj_t* btn_fine_minus = nullptr;
     lv_obj_t* btn_fine_plus = nullptr;
     lv_obj_t* btn_coarse_plus = nullptr;
 
-    // Text label layer mapping handles
     lv_obj_t* l_btn_coarse_minus = nullptr;
     lv_obj_t* l_btn_fine_minus = nullptr;
     lv_obj_t* l_btn_fine_plus = nullptr;
     lv_obj_t* l_btn_coarse_plus = nullptr;
 
+    lv_obj_t* btn_erase_sd = nullptr;
+    lv_obj_t* l_sd_info = nullptr;
+
     bool last_known_unit_mode = false;
 
     static void empty_cb(lv_event_t* e) {
-        sysState.empty_volts = sysState.sim_voltage;
-        sysState.saveToFlash(); 
+        sysState->empty_volts = sysState->sim_voltage;
+        sysState->saveToFlash();
     }
-    
+
     static void full_cb(lv_event_t* e) {
-        sysState.full_volts = sysState.sim_voltage;
-        sysState.saveToFlash(); 
+        sysState->full_volts = sysState->sim_voltage;
+        sysState->saveToFlash();
     }
-    
+
     static void offset_cb(lv_event_t* e) {
         float increment = 0.0f;
-        union { void* ptr; float val; } castLink;
+        union {
+            void* ptr;
+            float val;
+        } castLink;
         castLink.ptr = lv_event_get_user_data(e);
         float inputAmt = castLink.val;
 
-        if (!sysState.use_metric) {
+        if (!sysState->use_metric) {
             increment = inputAmt;
         } else {
             increment = inputAmt / 2.54f;
         }
+        sysState->offset_in += increment;
+        if (sysState->offset_in < 1.0f) sysState->offset_in = 1.0f;
+        sysState->saveToFlash();
+    }
 
-        sysState.offset_in += increment;
-        if (sysState.offset_in < 1.0f) sysState.offset_in = 1.0f; 
-        sysState.saveToFlash(); 
+    static void erase_sd_cb(lv_event_t* e) {
+        TabCalibration* instance = (TabCalibration*)lv_event_get_user_data(e);
+        if (instance != nullptr && instance->storageDisk != nullptr) {
+            if (instance->storageDisk->eraseAppDirectory()) {
+                Serial.println("[CALIBRATION] Storage folder successfully wiped via screen button.");
+            }
+        }
     }
 
     void bindButtonPayload(lv_obj_t* btn, float amount) {
         if (!btn) return;
         lv_obj_remove_event_cb(btn, offset_cb);
-        union { float val; void* ptr; } dsc;
+        union {
+            float val;
+            void* ptr;
+        } dsc;
         dsc.val = amount;
         lv_obj_add_event_cb(btn, offset_cb, LV_EVENT_CLICKED, dsc.ptr);
     }
 
 public:
+    TabCalibration(StorageDisk *storageDisk) {
+        this->storageDisk = storageDisk;
+    }
+
     void setup(lv_obj_t* tab) override {
         lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(tab, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_all(tab, 4, 0);
-        lv_obj_set_style_pad_row(tab, 4, 0); 
+        lv_obj_set_style_pad_row(tab, 4, 0);
 
-        // -------------------------------------------------------------
-        // ROW 1: SET EMPTY CALIBRATION (Restored to exactly 3 items)
-        // -------------------------------------------------------------
-        lv_obj_t* r1 = lv_obj_create(tab); lv_obj_set_size(r1, LV_PCT(100), 42);
-        lv_obj_set_flex_flow(r1, LV_FLEX_FLOW_ROW); lv_obj_set_flex_align(r1, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_bg_opa(r1, LV_OPA_TRANSP, 0); lv_obj_set_style_border_width(r1, 0, 0); lv_obj_set_style_pad_all(r1, 0, 0);
+        lv_obj_t* r1 = lv_obj_create(tab);
+        lv_obj_set_size(r1, LV_PCT(100), 42);
+        lv_obj_set_flex_flow(r1, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(r1, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_bg_opa(r1, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(r1, 0, 0);
+        lv_obj_set_style_pad_all(r1, 0, 0);
 
-        createString(r1, "         ", 14); // Item 1: Spacer
-        
-        // FIXED: Drop dummy handles. Create the button, let its inner text center automatically,
-        // and assign the master button container pointer straight to your class handle!
-        lv_obj_t* b1 = lv_button_create(r1); lv_obj_set_size(b1, 100, 32); // Item 2: Button
+        createString(r1, " ", 14);
+        lv_obj_t* b1 = lv_button_create(r1);
+        lv_obj_set_size(b1, 100, 32);
         lv_obj_add_event_cb(b1, empty_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t* b1_l = lv_label_create(b1); lv_label_set_text(b1_l, "Set Empty"); lv_obj_center(b1_l);
-        
-        l_empty = createString(r1, "0.000V", 14); // Item 3: Reading Label
+        lv_obj_t* b1_l = lv_label_create(b1);
+        lv_label_set_text(b1_l, "Set Empty");
+        lv_obj_center(b1_l);
+        l_empty = createString(r1, "0.000V", 14);
 
-        // -------------------------------------------------------------
-        // ROW 2: SET FULL CALIBRATION (Restored to exactly 3 items)
-        // -------------------------------------------------------------
-        lv_obj_t* r2 = lv_obj_create(tab); lv_obj_set_size(r2, LV_PCT(100), 42);
-        lv_obj_set_flex_flow(r2, LV_FLEX_FLOW_ROW); lv_obj_set_flex_align(r2, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_bg_opa(r2, LV_OPA_TRANSP, 0); lv_obj_set_style_border_width(r2, 0, 0); lv_obj_set_style_pad_all(r2, 0, 0);
+        lv_obj_t* r2 = lv_obj_create(tab);
+        lv_obj_set_size(r2, LV_PCT(100), 42);
+        lv_obj_set_flex_flow(r2, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(r2, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_bg_opa(r2, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(r2, 0, 0);
+        lv_obj_set_style_pad_all(r2, 0, 0);
 
-        createString(r2, "         ", 14); // Item 1: Spacer
-        
-        lv_obj_t* b2 = lv_button_create(r2); lv_obj_set_size(b2, 100, 32); // Item 2: Button
+        createString(r2, " ", 14);
+        lv_obj_t* b2 = lv_button_create(r2);
+        lv_obj_set_size(b2, 100, 32);
         lv_obj_add_event_cb(b2, full_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t* b2_l = lv_label_create(b2); lv_label_set_text(b2_l, "Set Full"); lv_obj_center(b2_l);
-        
-        l_full = createString(r2, "0.000V", 14); // Item 3: Reading Label
+        lv_obj_t* b2_l = lv_label_create(b2);
+        lv_label_set_text(b2_l, "Set Full");
+        lv_obj_center(b2_l);
+        l_full = createString(r2, "0.000V", 14);
 
-        // -------------------------------------------------------------
-        // ROW 3: PRECISION TUNING DECK CONFIGURATION (Kept as 5 items)
-        // -------------------------------------------------------------
-        lv_obj_t* r3 = lv_obj_create(tab); lv_obj_set_size(r3, LV_PCT(100), 42);
-        lv_obj_set_flex_flow(r3, LV_FLEX_FLOW_ROW); lv_obj_set_flex_align(r3, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_bg_opa(r3, LV_OPA_TRANSP, 0); lv_obj_set_style_border_width(r3, 0, 0); lv_obj_set_style_pad_all(r3, 0, 0);
-        
-        // This row continues to map beautifully because your layout array matches 5 items exactly
-        l_btn_coarse_minus  = createButtonWithTextHandle(r3, 50, 32, "-", NULL, NULL, btn_coarse_minus);
-        l_btn_fine_minus    = createButtonWithTextHandle(r3, 45, 32, "-", NULL, NULL, btn_fine_minus);
-        
-        l_offset            = createString(r3, "0.0 in", 14);
+        lv_obj_t* r3 = lv_obj_create(tab);
+        lv_obj_set_size(r3, LV_PCT(100), 42);
+        lv_obj_set_flex_flow(r3, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(r3, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_bg_opa(r3, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(r3, 0, 0);
+        lv_obj_set_style_pad_all(r3, 0, 0);
 
-        l_btn_fine_plus     = createButtonWithTextHandle(r3, 45, 32, "+", NULL, NULL, btn_fine_plus);
-        l_btn_coarse_plus   = createButtonWithTextHandle(r3, 50, 32, "+", NULL, NULL, btn_coarse_plus);
+        l_btn_coarse_minus = createButtonWithTextHandle(r3, 50, 32, "-", NULL, NULL, btn_coarse_minus);
+        l_btn_fine_minus = createButtonWithTextHandle(r3, 45, 32, "-", NULL, NULL, btn_fine_minus);
+        l_offset = createString(r3, "0.0 in", 14);
+        l_btn_fine_plus = createButtonWithTextHandle(r3, 45, 32, "+", NULL, NULL, btn_fine_plus);
+        l_btn_coarse_plus = createButtonWithTextHandle(r3, 50, 32, "+", NULL, NULL, btn_coarse_plus);
 
-        last_known_unit_mode = !sysState.use_metric; 
+        lv_obj_t* r4 = lv_obj_create(tab);
+        lv_obj_set_size(r4, LV_PCT(100), 42);
+        lv_obj_set_flex_flow(r4, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(r4, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_bg_opa(r4, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(r4, 0, 0);
+        lv_obj_set_style_pad_all(r4, 0, 0);
+
+        btn_erase_sd = lv_button_create(r4);
+        lv_obj_set_size(btn_erase_sd, 140, 32);
+        lv_obj_set_style_bg_color(btn_erase_sd, lv_palette_main(LV_PALETTE_RED), 0);
+        lv_obj_add_event_cb(btn_erase_sd, erase_sd_cb, LV_EVENT_CLICKED, this);
+
+        lv_obj_t* erase_lbl = lv_label_create(btn_erase_sd);
+        lv_label_set_text(erase_lbl, "Erase History");
+        lv_obj_center(erase_lbl);
+
+        l_sd_info = createString(r4, "Checking SD...", 13);
+        
+        last_known_unit_mode = !sysState->use_metric;
     }
 
     void update(bool force) override {
-        if (!l_empty || !l_full || !l_offset ||
+        if (!l_empty || !l_full || !l_offset || !btn_erase_sd || !l_sd_info ||
             !btn_coarse_minus || !btn_fine_minus || !btn_fine_plus || !btn_coarse_plus ||
             !l_btn_coarse_minus || !l_btn_fine_minus || !l_btn_fine_plus || !l_btn_coarse_plus) return;
 
-        char b_emp[32], b_ful[32], b_off[32];
-        snprintf(b_emp, sizeof(b_emp), "E: %.3fV", sysState.empty_volts);
-        snprintf(b_ful, sizeof(b_ful), "F: %.3fV", sysState.full_volts);
+        char b_emp[32], b_ful[32], b_off[32], b_sd[48];
+        snprintf(b_emp, sizeof(b_emp), "E: %.3fV", sysState->empty_volts);
+        snprintf(b_ful, sizeof(b_ful), "F: %.3fV", sysState->full_volts);
 
-        if (sysState.use_metric != last_known_unit_mode) {
-            last_known_unit_mode = sysState.use_metric;
+        if (storageDisk != nullptr && storageDisk->isPresent()) {
+            lv_obj_remove_state(btn_erase_sd, LV_STATE_DISABLED);
+            float free_gb = storageDisk->getCardFreeSpaceGB();
+            float total_gb = storageDisk->getCardSizeGB();
+            snprintf(b_sd, sizeof(b_sd), "Free: %.1f/%.1f GB", free_gb, total_gb);
+        } else {
+            lv_obj_add_state(btn_erase_sd, LV_STATE_DISABLED);
+            snprintf(b_sd, sizeof(b_sd), "SD Card Offline");
+        }
+        updateString(l_sd_info, b_sd);
 
-            if (!sysState.use_metric) {
+        if (sysState->use_metric != last_known_unit_mode) {
+            last_known_unit_mode = sysState->use_metric;
+            if (!sysState->use_metric) {
                 updateString(l_btn_coarse_minus, "-1'");
                 updateString(l_btn_fine_minus, "-1\"");
                 updateString(l_btn_fine_plus, "+1\"");
                 updateString(l_btn_coarse_plus, "+1'");
-
-                bindButtonPayload(btn_coarse_minus, -12.0f); 
-                bindButtonPayload(btn_fine_minus, -1.0f);    
-                bindButtonPayload(btn_fine_plus, 1.0f);      
-                bindButtonPayload(btn_coarse_plus, 12.0f);   
+                bindButtonPayload(btn_coarse_minus, -12.0f);
+                bindButtonPayload(btn_fine_minus, -1.0f);
+                bindButtonPayload(btn_fine_plus, 1.0f);
+                bindButtonPayload(btn_coarse_plus, 12.0f);
             } else {
                 updateString(l_btn_coarse_minus, "-10c");
                 updateString(l_btn_fine_minus, "-1c");
                 updateString(l_btn_fine_plus, "+1c");
                 updateString(l_btn_coarse_plus, "+10c");
-
-                bindButtonPayload(btn_coarse_minus, -10.0f); 
-                bindButtonPayload(btn_fine_minus, -1.0f);    
-                bindButtonPayload(btn_fine_plus, 1.0f);      
-                bindButtonPayload(btn_coarse_plus, 10.0f);   
+                bindButtonPayload(btn_coarse_minus, -10.0f);
+                bindButtonPayload(btn_fine_minus, -1.0f);
+                bindButtonPayload(btn_fine_plus, 1.0f);
+                bindButtonPayload(btn_coarse_plus, 10.0f);
             }
         }
 
-        if (!sysState.use_metric) {
-            snprintf(b_off, sizeof(b_off), "%.1f in", sysState.offset_in);
+        if (!sysState->use_metric) {
+            snprintf(b_off, sizeof(b_off), "%.1f in", sysState->offset_in);
         } else {
-            snprintf(b_off, sizeof(b_off), "%.1f cm", sysState.offset_in * 2.54f);
+            snprintf(b_off, sizeof(b_off), "%.1f cm", sysState->offset_in * 2.54f);
         }
 
         updateString(l_empty, b_emp);
