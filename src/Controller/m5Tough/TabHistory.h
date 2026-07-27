@@ -1,6 +1,8 @@
 #pragma once
 #include "BaseTab.h"
 #include "SystemState.h"
+#include "WebMain.h"
+
 #include <stdio.h>
 
 class TabHistory : public BaseTab {
@@ -202,6 +204,10 @@ public:
         lv_chart_refresh(chart_trends);
 
         last_known_unit_mode = !sysState->use_metric;
+
+        registerUiObj("hist_day_stats", l_day_stats);
+        registerUiObj("hist_wk_stats",  l_wk_stats);
+        registerUiObj("chart_trends", chart_trends);
 
         // force an update to get the chart created
         update(true);

@@ -1,6 +1,7 @@
 #pragma once
 #include "BaseTab.h"
 #include "SystemState.h"
+#include "WebMain.h"
 
 class TabMainDisplay : public BaseTab {
 private:
@@ -54,6 +55,14 @@ public:
         l_live_measure = createString(tab_container, "0.0 in (0.0in)", 14, 110, 92, lv_palette_main(LV_PALETTE_GREY));
         l_raw_voltage = createString(tab_container, "Sensor: 0.000 V", 14, 110, 110, lv_color_black());
         l_mac_addr = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, 110, 128, lv_palette_main(LV_PALETTE_GREY));
+
+        registerUiObj("main_depth", l_measurement);
+        registerUiObj("main_delta", l_inches_delta);
+        registerUiObj("main_valve", l_valve_state);
+        registerUiObj("main_live",  l_live_measure);
+        registerUiObj("main_volt",  l_raw_voltage);
+        registerUiObj("main_mac",   l_mac_addr);
+
     }
 
     void update(bool force) override {

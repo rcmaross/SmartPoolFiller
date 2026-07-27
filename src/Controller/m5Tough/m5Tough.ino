@@ -19,6 +19,7 @@
 #include "TabNetwork.h"
 #include "TabHistory.h"
 #include "StorageDisk.h"
+#include "WebMain.h"
 
 SystemState *sysState = nullptr;
 PoolSensor* activeSensor = nullptr; 
@@ -35,6 +36,7 @@ TabNetwork *tabNetwork = nullptr;
 TabSettings *tabSettings = nullptr;
 TabHistory *tabHistory = nullptr;
 StorageDisk *storageDisk = nullptr;
+WiFiServer *poolServer = nullptr;
 
 unsigned long lastHardwareSample = 0;
 const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
@@ -100,6 +102,7 @@ void setup_ui() {
 
     // Left Side Text Label: Tracks Level %, Depth, and State Notes
     sl_status_label = lv_label_create(sb);
+    registerUiObj("status", sl_status_label);
     lv_label_set_text(sl_status_label, "LVL: --% | INIT");
     lv_obj_set_style_text_color(sl_status_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(sl_status_label, &lv_font_montserrat_14, 0);
@@ -107,6 +110,7 @@ void setup_ui() {
 
     // NEW: CENTER TIME LABEL (Sits perfectly in the middle of your bar space)
     sl_time_label = lv_label_create(sb);
+    registerUiObj("time", sl_time_label);
     lv_label_set_text(sl_time_label, "00:00");
     lv_obj_set_style_text_color(sl_time_label, lv_palette_main(LV_PALETTE_GREY), 0); // Soft grey accent tint
     lv_obj_set_style_text_font(sl_time_label, &lv_font_montserrat_14, 0);
@@ -114,6 +118,7 @@ void setup_ui() {
 
     // Right Side Icon Label: Universal Wi-Fi Connectivity Panel
     sl_wifi_icon_label = lv_label_create(sb);
+    registerUiObj("wifi-icon", sl_wifi_icon_label);
     lv_label_set_text(sl_wifi_icon_label, "");
     lv_obj_set_style_text_font(sl_wifi_icon_label, &lv_font_montserrat_14, 0);
     lv_obj_align(sl_wifi_icon_label, LV_ALIGN_RIGHT_MID, -10, 0);
@@ -253,6 +258,8 @@ void loop() {
     last_tick = now;
 
     lv_timer_handler(); 
+    if(poolServer != nullptr)
+        handlePoolWebClient(poolServer);
     delay(5);
 }
 
@@ -260,7 +267,8 @@ void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     M5.Power.setExtOutput(true); 
-    
+    M5.Power.setChargeCurrent(100); // charge RTC battery
+
     Serial.begin(115200); 
     
     sysState = new SystemState();
@@ -350,7 +358,9 @@ void setup() {
 
     setup_ui();
     tabNetwork->connectNetwork(); 
-
+    poolServer = new WiFiServer(80);
+    initPoolWebServer(poolServer);
+    
     ArduinoOTA.setHostname("SmartPoolFiller-Tough");
     ArduinoOTA.setPassword("admin");
     ArduinoOTA.setRebootOnSuccess(true); 
