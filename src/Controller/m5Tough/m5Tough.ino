@@ -21,6 +21,14 @@
 #include "StorageDisk.h"
 #include "WebMain.h"
 
+// Timing threshold: 5 minutes in milliseconds (5 * 60 * 1000)
+const unsigned long INACTIVITY_TIMEOUT = 300000; 
+// faster for testing
+//const unsigned long INACTIVITY_TIMEOUT = 30000; 
+
+const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
+const unsigned long UI_INTERVAL = 1000; // ms 1000ms = 1s
+
 SystemState *sysState = nullptr;
 PoolSensor* activeSensor = nullptr; 
 lv_obj_t* sl_status_label = nullptr;
@@ -39,8 +47,22 @@ StorageDisk *storageDisk = nullptr;
 WiFiServer *poolServer = nullptr;
 
 unsigned long lastHardwareSample = 0;
-const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
-const unsigned long UI_INTERVAL = 1000; // ms 1000ms = 1s
+unsigned long lastTouchTime = 0;       
+bool screenIsDimmed = false;           
+
+void setDisplayBrightness(bool lowPower) {
+    if (lowPower) {
+        // M5Unified clean brightness reduction scale (0 = completely blacked out backlight)
+        M5.Display.setBrightness(64); 
+        screenIsDimmed = true;
+        Serial.println("[SYSTEM] Inactivity timeout reached. Backlight turned off.");
+    } else {
+        // Restore screen back to clear operating visibility (standard brightness level 128 out of 255)
+        M5.Display.setBrightness(128); 
+        screenIsDimmed = false;
+        Serial.println("[SYSTEM] Touch event intercepted. Backlight restored.");
+    }
+}
 
 void my_disp_flush(lv_display_t * d, const lv_area_t * area, uint8_t * px) {
     uint32_t w = (area->x2 - area->x1 + 1);
@@ -257,7 +279,29 @@ void loop() {
     lv_tick_inc(now - last_tick);
     last_tick = now;
 
-    lv_timer_handler(); 
+    lv_timer_handler();
+    
+    if (M5.Touch.getCount() > 0) {
+        lastTouchTime = currentMillis; // Reset the activity timeline clock window
+        
+        if (screenIsDimmed) {
+            setDisplayBrightness(false); // Wake the backlight up on first contact
+            
+            // Consume the active touch point natively so it doesn't 
+            // trigger an un-intended button click hidden directly underneath!
+            while(M5.Touch.getCount() > 0) {
+                delay(10);
+                M5.update();
+            }
+        }
+    }
+
+    if (!screenIsDimmed) {
+        if (currentMillis - lastTouchTime >= INACTIVITY_TIMEOUT) {
+            setDisplayBrightness(true); // Put backlight to sleep
+        }
+    }
+
     if(poolServer != nullptr)
         handlePoolWebClient(poolServer);
     delay(5);

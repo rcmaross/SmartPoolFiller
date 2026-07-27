@@ -1,8 +1,8 @@
 # Block macOS hidden operating system metadata files everywhere
 .DS_Store
 **/.DS_Store
-
-*~
+**/#*#
+**/*~
 
 # Block local compiled binary directories and deployment outputs
 bin/
