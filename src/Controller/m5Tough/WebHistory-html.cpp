@@ -13,6 +13,23 @@ const char* INDEX_HISTORY_HTML PROGMEM = R"rawliteral(
     <div style="position:relative; width:100%; max-width:600px; margin:0 auto; background:#fff; border:1px solid #e2e8f0; padding:10px; border-radius:4px;">
         <canvas id="historyChart" width="550" height="200" style="width:100%; height:auto; display:block;"></canvas>
     </div>
+    <h2>🛠️ Calculation Debug Monitor</h2>
+    <div style="display: flex; justify-content: space-between; font-family: monospace;">
+        <span>Lowest: <b id="dbgLowest">--</b></span>
+        <span>Highest: <b id="dbgHighest">--</b></span>
+        <span>Mean: <b id="dbgMean">--</b></span>
+        <span>Median: <b id="dbgMedian">--</b></span>
+        <span>Trimmed: <b id="dbgTrimmed">--</b></span>
+    </div>
+    <div id="dbgGrid" style="
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); 
+        gap: 6px; 
+        font-family: monospace; 
+        font-size: 11px; 
+        text-align: center; 
+        margin-top: 10px;">
+    </div>
 </div>
 
 <script>
@@ -89,6 +106,28 @@ const char* INDEX_HISTORY_HTML PROGMEM = R"rawliteral(
                 ctx.fillText("60m", canvas.width - 5, padT + 10);
                 ctx.fillText("0m", canvas.width - 5, padT + h);
             }).catch(() => {});
+    });
+    document.addEventListener("DOMContentLoaded", () => {
+        const updateDebug = () => {
+            fetch('/api/depth-data')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('dbgMean').innerText = data.calcMean.toFixed(2);
+                    document.getElementById('dbgMedian').innerText = data.calcMedian.toFixed(2);
+                    document.getElementById('dbgTrimmed').innerText = data.calcTrimmed.toFixed(2);
+
+                    const gridEl = document.getElementById('dbgGrid');
+                    gridEl.innerHTML = data.rawBuffer.map(v => `<div>${v.toFixed(2)}</div>`).join('');
+                    
+                    document.getElementById('dbgLowest').innerText = data.calcLowest.toFixed(2);
+                    document.getElementById('dbgHighest').innerText = data.calcHighest.toFixed(2);
+                }).catch((err) => {
+                console.error("Debug Monitor Crash:", err); 
+            });
+
+        };
+        updateDebug();
+        setInterval(updateDebug, 10000);
     });
 </script>
 )rawliteral";

@@ -98,31 +98,31 @@ public:
         }
 
         if (!sysState->use_metric) {
-            depthStr = String(poolDepth, 1) + " in";
+            depthStr = String(poolDepth, 2) + " in";
             float inchesFromFull = poolDepth - sysState->offset_in;
             if (inchesFromFull > 0.05f) deltaStr = "+" + String(inchesFromFull, 1) + " in";
             else if (inchesFromFull < -0.05f) deltaStr = String(inchesFromFull, 1) + " in";
-            else deltaStr = "0.0 in";
+            else deltaStr = "0.00 in";
 
-            instantDepthStr = String(instantPoolDepth, 1) + " in";
+            instantDepthStr = String(instantPoolDepth, 2) + " in";
             inchesFromFull = instantPoolDepth - sysState->offset_in;
             if (inchesFromFull > 0.05f) instantDeltaStr = "+" + String(inchesFromFull, 1) + " in";
             else if (inchesFromFull < -0.05f) instantDeltaStr = String(inchesFromFull, 1) + " in";
-            else instantDeltaStr = "0.0 in";
+            else instantDeltaStr = "0.00 in";
         } else {
             float cmPoolDepth = sysState->convertFromInch(poolDepth);
-            depthStr = String(cmPoolDepth, 1) + " cm";
+            depthStr = String(cmPoolDepth, 2) + " cm";
             float cmFromFull = cmPoolDepth - sysState->convertFromInch(sysState->offset_in);
             if (cmFromFull > 0.1f) deltaStr = "+" + String(cmFromFull, 1) + " cm";
             else if (cmFromFull < -0.1f) deltaStr = String(cmFromFull, 1) + " cm";
-            else deltaStr = "0.0 cm";
+            else deltaStr = "0.00 cm";
 
             float cmInstantPoolDepth = sysState->convertFromInch(instantPoolDepth);
-            instantDepthStr = String(cmInstantPoolDepth, 1) + " cm";
+            instantDepthStr = String(cmInstantPoolDepth, 2) + " cm";
             cmFromFull = cmInstantPoolDepth - sysState->convertFromInch(sysState->offset_in);
             if (cmFromFull > 0.1f) instantDeltaStr = "+" + String(cmFromFull, 1) + " cm";
             else if (cmFromFull < -0.1f) instantDeltaStr = String(cmFromFull, 1) + " cm";
-            else instantDeltaStr = "0.0 cm";
+            else instantDeltaStr = "0.00 cm";
         }
 
         updateString(l_measurement, depthStr.c_str());

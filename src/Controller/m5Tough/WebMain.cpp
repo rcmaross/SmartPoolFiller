@@ -117,8 +117,8 @@ void handlePoolWebClient(WiFiServer *server) {
         lv_obj_t* voltL  = getObjByName("main_volt");
         lv_obj_t* macL   = getObjByName("main_mac");
 
-        const char* txtDepth = depthL ? lv_label_get_text(depthL) : "0.0 in";
-        const char* txtDelta = deltaL ? lv_label_get_text(deltaL) : "0.0 in";
+        const char* txtDepth = depthL ? lv_label_get_text(depthL) : "0.00 in";
+        const char* txtDelta = deltaL ? lv_label_get_text(deltaL) : "0.00 in";
         const char* txtValve = valveL ? lv_label_get_text(valveL) : "VALVE: OFFLINE";
         const char* txtLive  = liveL  ? lv_label_get_text(liveL)  : "Inst: --";
         const char* txtVolt  = voltL  ? lv_label_get_text(voltL)  : "Sensor: --";

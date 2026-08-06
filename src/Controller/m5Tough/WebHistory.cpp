@@ -1,5 +1,6 @@
 #include "WebHistory.h"
 #include "WebMain.h"
+#include "SystemState.h"
 #include <SD.h>
 
 bool handleHistoryWebRoutes(WiFiClient& client, const String& requestLine) {
@@ -67,5 +68,32 @@ bool handleHistoryWebRoutes(WiFiClient& client, const String& requestLine) {
         client.print("]}");
         return true;
     }
+
+    if (requestLine.indexOf("GET /api/depth-data") != -1) {
+        client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n");
+
+        client.print("{");
+        client.print("\"calcMean\":");    client.print(sysState->calculateMeanDepth(), 2);    client.print(",");
+        client.print("\"calcMedian\":");  client.print(sysState->calculateMedianDepth(), 2);  client.print(",");
+        client.print("\"calcTrimmed\":"); client.print(sysState->calculateTrimmedMean(), 2); client.print(",");
+
+        client.print("\"rawBuffer\":[");
+        float lowest = 10000.0f;
+        float highest = 0.0f;
+        for (int i = 0; i < 60; i++) {
+            client.print(sysState->depth_history[i], 2); // Pulls straight from your rolling array
+            if (i < 59) client.print(",");
+            if (sysState->depth_history[i] < lowest)
+                lowest = sysState->depth_history[i];
+            if (sysState->depth_history[i] > highest)
+                highest = sysState->depth_history[i];
+        }
+        client.print("],");
+        client.print("\"calcLowest\":"); client.print(lowest, 2); client.print(",");
+        client.print("\"calcHighest\":"); client.print(highest, 2);
+        client.print("}");
+        return true;
+    }
+
     return false; 
 }

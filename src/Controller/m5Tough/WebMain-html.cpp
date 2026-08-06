@@ -71,8 +71,8 @@ const char* INDEX_HTML PROGMEM = R"rawliteral(
                     <div id="tankBlue" class="tank-segment seg-blue"></div>
                 </div>
                 <div class="metric-list">
-                    <p id="lblDepth" class="m-depth">0.0 in</p>
-                    <p id="lblDelta" class="m-delta">0.0 in</p>
+                    <p id="lblDepth" class="m-depth">0.00 in</p>
+                    <p id="lblDelta" class="m-delta">0.00 in</p>
                     <p id="lblValve" class="m-text" style="font-weight:bold;">VALVE: STANDBY</p>
                     <p id="lblLive" class="m-text">Inst: --</p>
                     <p id="lblVolt" class="m-text">Sensor: --</p>

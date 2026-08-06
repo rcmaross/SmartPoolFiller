@@ -117,7 +117,7 @@ void TabNetwork::broadcastControlPacket() {
     
     // Scaled time-slice tracking counters
     static uint32_t elapsed_cycle_seconds = 0; 
-
+    static uint32_t elapsed_rest_seconds = 0;
     PoolControlPacket outbound_data;
 
     // Fetch local time coordinates
@@ -137,6 +137,7 @@ void TabNetwork::broadcastControlPacket() {
         core_fill_cycle_active = false;
         well_is_resting = false;
         elapsed_cycle_seconds = 0;
+        elapsed_rest_seconds = 0;
     }
 
     // =====================================================================
@@ -153,6 +154,7 @@ void TabNetwork::broadcastControlPacket() {
             core_fill_cycle_active = true;
             well_is_resting = false;
             elapsed_cycle_seconds = 0;
+            elapsed_rest_seconds = 0;
             Serial.printf("[AUTOMATION] One-Hour average dropped below deadband threshold limit (Current Avg: %0.2f, Target: %0.2f, Deadband: %0.2f). Starting cycle.\n",
                           smoothed_historical_depth, target_full_depth, sysState->fill_deadband_trigger);
         }
@@ -163,19 +165,30 @@ void TabNetwork::broadcastControlPacket() {
         core_fill_cycle_active = false;
         well_is_resting = false;
         elapsed_cycle_seconds = 0;
+        elapsed_rest_seconds = 0;
     }
 
     // =====================================================================
     // 4. DYNAMIC TIME-SCALED WELL TIMERS STATE MACHINE
     // =====================================================================
+
+    // Force loop termination if the pool is full
+    if ((smoothed_historical_depth >= target_full_depth) && core_fill_cycle_active ) {
+        core_fill_cycle_active = false;
+        well_is_resting = false;
+        elapsed_cycle_seconds = 0;
+        elapsed_rest_seconds = 0;
+    }
+
     if (core_fill_cycle_active) {
-        elapsed_cycle_seconds++;
 
         uint32_t target_run_limit_seconds = 1800 / sysState->time_scale_factor;
         uint32_t target_rest_limit_seconds = (sysState->well_rest_selection * 300) / sysState->time_scale_factor;
         if (target_rest_limit_seconds == 0) target_rest_limit_seconds = 1;
 
         if (!well_is_resting) {
+            elapsed_cycle_seconds++;
+
             // VALVE OPEN PHASE (The master is actively commanding a fill right now)
             
             // --- ADD THIS SINGLE LINE HERE ---
@@ -184,15 +197,16 @@ void TabNetwork::broadcastControlPacket() {
 
             if (elapsed_cycle_seconds >= target_run_limit_seconds) {
                 well_is_resting = true;
-                elapsed_cycle_seconds = 0; 
+                elapsed_cycle_seconds = 0;
             }
         } 
         else {
+            elapsed_rest_seconds++;
+
             // VALVE COOLDOWN REST PHASE (The pump is resting, so we don't count seconds)
-            if (elapsed_cycle_seconds >= target_rest_limit_seconds) {
-                core_fill_cycle_active = false;
+            if (elapsed_rest_seconds >= target_rest_limit_seconds) {
                 well_is_resting = false;
-                elapsed_cycle_seconds = 0;
+                elapsed_rest_seconds = 0;
             }
         }
     }

@@ -47,13 +47,13 @@ struct SystemState {
     // (0=STANDBY/OFF, 1=FILLING, 2=WELL RECOVERY REST)
     uint8_t active_master_command_state = 0; 
 
-    // Helper method to pull the smoothed rolling historical depth average
-    float getRollingOneHourDepthAverageOld() {
+    float calculateMeanDepth() {
         float sum = 0.0f;
         for (int i = 0; i < 60; i++) sum += depth_history[i];
         return sum / 60.0f;
     }
-    float getRollingOneHourDepthAverage() {
+
+    float calculateMedianDepth() {
         float sorted[60];
         memcpy(sorted, depth_history, sizeof(sorted));
 
@@ -69,6 +69,33 @@ struct SystemState {
         return sorted[30];
     }
 
+    float calculateTrimmedMean() {
+        float sorted[60];
+        memcpy(sorted, depth_history, sizeof(sorted));
+
+        for (int i = 0; i < 59; i++) {
+            for (int j = 0; j < 59 - i; j++) {
+                if (sorted[j] > sorted[j + 1]) {
+                    float temp = sorted[j];
+                    sorted[j] = sorted[j + 1];
+                    sorted[j + 1] = temp;
+                }
+            }
+        }
+        float runningSum = 0.0f;
+        int validSampleCount = 0;
+
+        for (int i = 3; i <= 56; i++) {
+            runningSum += sorted[i];
+            validSampleCount++;
+        }
+
+        return runningSum / (float)validSampleCount;
+    }
+   
+    float getRollingOneHourDepthAverage() {
+        return calculateTrimmedMean();
+    }
 
     bool timeAllowed() {
         // Fetch local time coordinates
