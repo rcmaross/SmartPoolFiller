@@ -183,9 +183,11 @@ void TabNetwork::broadcastControlPacket() {
     if (core_fill_cycle_active) {
 
         uint32_t target_run_limit_seconds = 1800 / sysState->time_scale_factor;
-        uint32_t target_rest_limit_seconds = (sysState->well_rest_selection * 300) / sysState->time_scale_factor;
-        if (target_rest_limit_seconds == 0) target_rest_limit_seconds = 1;
-
+        uint32_t target_rest_limit_seconds = 0;
+        if (sysState->well_rest_selection) {
+            target_rest_limit_seconds = (sysState->well_rest_selection * 300) / sysState->time_scale_factor;
+            if (target_rest_limit_seconds == 0) target_rest_limit_seconds = 1; //hack for super fast time_scale_factors
+        }
         if (!well_is_resting) {
             elapsed_cycle_seconds++;
 
@@ -194,8 +196,7 @@ void TabNetwork::broadcastControlPacket() {
             // --- ADD THIS SINGLE LINE HERE ---
             // Natively log exactly 1 second of actual runtime to our history accumulator
             sysState->live_valve_run_seconds_current_hour++;
-
-            if (elapsed_cycle_seconds >= target_run_limit_seconds) {
+            if (target_rest_limit_seconds && (elapsed_cycle_seconds >= target_run_limit_seconds)) {
                 well_is_resting = true;
                 elapsed_cycle_seconds = 0;
             }

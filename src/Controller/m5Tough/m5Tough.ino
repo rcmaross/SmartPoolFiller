@@ -214,10 +214,10 @@ void hw_loop(unsigned long currentMillis) {
             snprintf(sb_buf, sizeof(sb_buf), "LEVEL: ERROR | HW LOSS");
         } else {
              if (sysState->use_metric) {
-                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1fcm | %s",
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2fcm | %s",
                      pct, depth * 2.54f, status);
             } else {
-                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.1fin | %s",
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2fin | %s",
                      pct, depth, status);
             }
         }
