@@ -15,7 +15,8 @@ struct SystemState {
     float sim_voltage = 1.0f;
     bool use_metric = false;
     bool ads_hardware_found = false;
-
+    float pressure = 0.0f;
+    
     // --- Existing Network Tracking State ---
     int system_id = 1; // default system to allow multiple sets on 1 wifi.
     int connection_type = 1;     // 0=OFF, 1=WIFI, 2=AUTO, 3+=MANUAL

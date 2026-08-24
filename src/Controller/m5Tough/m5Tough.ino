@@ -48,7 +48,11 @@ WiFiServer *poolServer = nullptr;
 
 unsigned long lastHardwareSample = 0;
 unsigned long lastTouchTime = 0;       
-bool screenIsDimmed = false;           
+bool screenIsDimmed = false;  
+
+// hard code to my house for now.
+String lat = "42.5980";
+String lon = "-71.4897";
 
 void setDisplayBrightness(bool lowPower) {
     if (lowPower) {
@@ -178,9 +182,16 @@ void setup_ui() {
     if (tabHistory != nullptr)     tabHistory->setup(t5); 
 }
 
+
+float fetchBarometricPressure() {
+    return 0.00f;
+}
+
 void hw_loop(unsigned long currentMillis) {
 
     auto dt = M5.Rtc.getDateTime();
+
+    sysState->pressure = fetchBarometricPressure();
 
     // read sensor every second
     if (activeSensor != nullptr) {
@@ -214,10 +225,10 @@ void hw_loop(unsigned long currentMillis) {
             snprintf(sb_buf, sizeof(sb_buf), "LEVEL: ERROR | HW LOSS");
         } else {
              if (sysState->use_metric) {
-                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2fcm | %s",
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2f | %s",
                      pct, depth * 2.54f, status);
             } else {
-                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2fin | %s",
+                snprintf(sb_buf, sizeof(sb_buf), "LVL: %d%% | %0.2f | %s",
                      pct, depth, status);
             }
         }

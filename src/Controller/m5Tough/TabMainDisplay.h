@@ -5,21 +5,23 @@
 
 class TabMainDisplay : public BaseTab {
 private:
+    lv_obj_t* l_full = nullptr;
     lv_obj_t* l_measurement = nullptr;
-    lv_obj_t* l_inches_delta = nullptr;
     lv_obj_t* l_live_measure = nullptr;
     lv_obj_t* l_raw_voltage = nullptr;
+    lv_obj_t* l_raw_pressure = nullptr;
     lv_obj_t* l_mac_addr = nullptr;
     lv_obj_t* l_valve_state = nullptr;
     lv_obj_t* rect_top_red = nullptr;
     lv_obj_t* rect_mid_yellow = nullptr;
     lv_obj_t* rect_bot_blue = nullptr;
 
-    const int tank_x = 25;
+    const int tank_x = 10;
     const int tank_w = 35;
+    const int tank_l = 8;
     const int max_h = 130;
     const int full_h = 108;
-    const int tank_floor_y = 15 + 130; // 🚀 SINGLE SOURCE OF TRUTH: Computed once for both passes
+    const int tank_floor_y = 15 + 130;
 
 public:
     void setup(lv_obj_t* tab_container) override {
@@ -28,7 +30,7 @@ public:
 
         lv_obj_t* tank_bg = lv_obj_create(tab_container);
         lv_obj_set_size(tank_bg, tank_w + 4, max_h + 4);
-        lv_obj_set_pos(tank_bg, tank_x - 2, 13);
+        lv_obj_set_pos(tank_bg, tank_x - 2, tank_l);
         lv_obj_set_style_bg_opa(tank_bg, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(tank_bg, 2, 0);
         lv_obj_set_style_border_color(tank_bg, lv_palette_main(LV_PALETTE_GREY), 0);
@@ -48,16 +50,28 @@ public:
 
         lv_obj_set_size(rect_mid_yellow, tank_w, full_h);
         lv_obj_set_pos(rect_mid_yellow, tank_x, tank_floor_y - full_h);
+        l_full = createString(tab_container, "0.0", 14, tank_x + tank_w + 8, tank_floor_y - full_h - 8, lv_color_black());
 
-        l_measurement = createString(tab_container, "0.0 in", 24, 110, 20, lv_color_black());
-        l_inches_delta = createString(tab_container, "0.0 in", 18, 110, 52, lv_palette_main(LV_PALETTE_GREY));
-        l_valve_state = createString(tab_container, "VALVE: OFFLINE", 14, 110, 75, lv_palette_main(LV_PALETTE_GREY));
-        l_live_measure = createString(tab_container, "0.0 in (0.0in)", 14, 110, 92, lv_palette_main(LV_PALETTE_GREY));
-        l_raw_voltage = createString(tab_container, "Sensor: 0.000 V", 14, 110, 110, lv_color_black());
-        l_mac_addr = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, 110, 128, lv_palette_main(LV_PALETTE_GREY));
+        // left half of display...
+        int left_margin = 100 + tank_x;
+        int first = 20;
+        int big_offset = 32;
+        int sm_offset = 17;
+        int next = first;
+        l_measurement = createString(tab_container, "0.00 in (0.00 in)", 24, left_margin, next, lv_color_black());
+        next += big_offset;
+        l_valve_state = createString(tab_container, "VALVE: OFFLINE", 14, left_margin, next, lv_palette_main(LV_PALETTE_GREY));
+        next += sm_offset;
+        l_live_measure = createString(tab_container, "0.00 in (0.00in)", 14, left_margin, next, lv_palette_main(LV_PALETTE_GREY));
+        next += sm_offset;
+        l_raw_voltage = createString(tab_container, "Raw Volt: 0.000 V", 14, left_margin, next, lv_color_black());
+        next += sm_offset;
+        l_raw_pressure = createString(tab_container, "Raw Press: 00.00 inHg", 14, left_margin, next, lv_color_black());
+        next += sm_offset;
+        l_mac_addr = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, left_margin, next, lv_palette_main(LV_PALETTE_GREY));
 
         registerUiObj("main_depth", l_measurement);
-        registerUiObj("main_delta", l_inches_delta);
+        registerUiObj("main_delta", l_measurement); // fix web to not use this
         registerUiObj("main_valve", l_valve_state);
         registerUiObj("main_live",  l_live_measure);
         registerUiObj("main_volt",  l_raw_voltage);
@@ -66,7 +80,7 @@ public:
     }
 
     void update(bool force) override {
-        if (!l_measurement || !l_inches_delta || !l_live_measure || !l_raw_voltage || !l_valve_state || !rect_top_red || !rect_mid_yellow || !rect_bot_blue || !l_mac_addr) return;
+        if (!l_measurement || !l_live_measure || !l_raw_voltage || !l_valve_state || !rect_top_red || !rect_mid_yellow || !rect_bot_blue || !l_mac_addr) return;
 
         int pct = 0;
         float poolDepth = 0.0f;
@@ -97,51 +111,59 @@ public:
             }
         }
         if (!sysState->use_metric) {
-            depthStr = String(poolDepth, 2) + " in";
+            depthStr = String(poolDepth, 2);
             float inchesFromFull = poolDepth - sysState->offset_in;
-            if (inchesFromFull > 0.0f) deltaStr = "+" + String(inchesFromFull, 2) + " in";
-            else if (inchesFromFull < 0.0f) deltaStr = String(inchesFromFull, 2) + " in";
-            else deltaStr = "0.00 in";
+            if (inchesFromFull > 0.0f) deltaStr = "+" + String(inchesFromFull, 2);
+            else if (inchesFromFull < 0.0f) deltaStr = String(inchesFromFull, 2);
+            else deltaStr = "0.00";
 
-            instantDepthStr = String(instantPoolDepth, 2) + " in";
+            instantDepthStr = String(instantPoolDepth, 2);
             inchesFromFull = instantPoolDepth - sysState->offset_in;
-            if (inchesFromFull > 0.0f) instantDeltaStr = "+" + String(inchesFromFull, 2) + " in";
-            else if (inchesFromFull < 0.0f) instantDeltaStr = String(inchesFromFull, 2) + " in";
-            else instantDeltaStr = "0.00 in";
+            if (inchesFromFull > 0.0f) instantDeltaStr = "+" + String(inchesFromFull, 2);
+            else if (inchesFromFull < 0.0f) instantDeltaStr = String(inchesFromFull, 2);
+            else instantDeltaStr = "0.00";
         } else {
             float cmPoolDepth = sysState->convertFromInch(poolDepth);
-            depthStr = String(cmPoolDepth, 2) + " cm";
+            depthStr = String(cmPoolDepth, 2);
             float cmFromFull = cmPoolDepth - sysState->convertFromInch(sysState->offset_in);
-            if (cmFromFull > 0.0f) deltaStr = "+" + String(cmFromFull, 2) + " cm";
-            else if (cmFromFull < 0.0f) deltaStr = String(cmFromFull, 2) + " cm";
-            else deltaStr = "0.00 cm";
+            if (cmFromFull > 0.0f) deltaStr = "+" + String(cmFromFull, 2);
+            else if (cmFromFull < 0.0f) deltaStr = String(cmFromFull, 2);
+            else deltaStr = "0.00";
 
             float cmInstantPoolDepth = sysState->convertFromInch(instantPoolDepth);
-            instantDepthStr = String(cmInstantPoolDepth, 2) + " cm";
+            instantDepthStr = String(cmInstantPoolDepth, 2);
             cmFromFull = cmInstantPoolDepth - sysState->convertFromInch(sysState->offset_in);
-            if (cmFromFull > 0.0f) instantDeltaStr = "+" + String(cmFromFull, 2) + " cm";
-            else if (cmFromFull < 0.0f) instantDeltaStr = String(cmFromFull, 2) + " cm";
-            else instantDeltaStr = "0.00 cm";
+            if (cmFromFull > 0.0f) instantDeltaStr = "+" + String(cmFromFull, 2);
+            else if (cmFromFull < 0.0f) instantDeltaStr = String(cmFromFull, 2);
+            else instantDeltaStr = "0.00";
         }
 
-        updateString(l_measurement, depthStr.c_str());
-        updateString(l_inches_delta, deltaStr.c_str());
+        char b_off[32];
+        if (!sysState->use_metric) {
+            snprintf(b_off, sizeof(b_off), "%.1f", sysState->offset_in);
+        } else {
+            snprintf(b_off, sizeof(b_off), "%.1f", sysState->offset_in * 2.54f);
+        }
 
-        String fullLiveStr = "Inst: " + instantDepthStr + " (" + instantDeltaStr + ")";
+        updateString(l_full, b_off);
+        String measurementStr = deltaStr + " (" + depthStr + ")";
+        updateString(l_measurement, measurementStr.c_str());
+        String fullLiveStr = "Inst: " + instantDeltaStr + " (" + instantDepthStr + ")";
         updateString(l_live_measure, fullLiveStr.c_str());
 
         char mac_buffer[] = "MAC: 00:00:00:00:00:00";
         snprintf(mac_buffer, sizeof(mac_buffer), "MAC: %02X:%02X:%02X:%02X:%02X:%02X", (int)sysState->mac_address[0], (int)sysState->mac_address[1], (int)sysState->mac_address[2], (int)sysState->mac_address[3], (int)sysState->mac_address[4], (int)sysState->mac_address[5]);
         updateString(l_mac_addr, mac_buffer);
 
+        String pressureStr = String(sysState->pressure) + " inHg";
+        updateString(l_raw_pressure, pressureStr.c_str(), lv_palette_main(LV_PALETTE_BLUE));
         if (sysState->ads_hardware_found) {
             String voltStr = "Raw Volt: " + String(sysState->sim_voltage, 3) + " V";
             updateString(l_raw_voltage, voltStr.c_str(), lv_palette_main(LV_PALETTE_BLUE));
         } else {
             if (sysState->sim_voltage <= 0.02f) {
                 updateString(l_raw_voltage, "LOOP DISCONNECTED", lv_palette_main(LV_PALETTE_RED));
-                updateString(l_measurement, "FAULT", lv_palette_main(LV_PALETTE_RED));
-                updateString(l_inches_delta, "OFFLINE", lv_palette_main(LV_PALETTE_RED));
+                updateString(l_measurement, "FAULT(OFFLINE)", lv_palette_main(LV_PALETTE_RED));
                 updateString(l_live_measure, "FAULT", lv_palette_main(LV_PALETTE_RED));
             } else {
                 String voltStr = "Sim Volt: " + String(sysState->sim_voltage, 3) + " V";
