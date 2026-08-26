@@ -32,10 +32,18 @@ bool handleDownloadWebRoutes(WiFiClient& client, const String& requestLine) {
         bool isFirst = true;
         while (file) {
             if (!file.isDirectory()) {
+                time_t lastWrite = file.getLastWrite();
+
+                struct tm timeinfo;
+                localtime_r(&lastWrite, &timeinfo);
+
+                char dateBuf[20];
+                strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d %H:%M:%S", &timeinfo);
                 if (!isFirst) client.print(",");
                 isFirst = false;
-                client.print("{\"name\":\""); client.print(file.name());
-                client.print("\",\"size\":"); client.print(file.size());
+                client.print("{\"name\":\""); client.print(file.name()); client.print("\""); 
+                client.print(",\"size\":"); client.print(file.size());
+                client.print(",\"date\":\""); client.print(dateBuf); client.print("\"");                
                 client.print("}");
             }
             file = root.openNextFile();

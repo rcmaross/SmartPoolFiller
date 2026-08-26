@@ -160,3 +160,65 @@ public:
     bool  isHardwarePresent() override { return true; }
     bool  isFaulted() override         { return false; } 
 };
+// ---------------------------------------------------------------------
+// CLASS 3: Simulated Stream Layer (Serial CLI Controls) w/pressure
+// ---------------------------------------------------------------------
+class SimulatedSerialSensorWithPressure : public PoolSensor {
+private:
+    float _simulatedVoltage;
+    float _simulatedPressure;
+
+public:
+    SimulatedSerialSensorWithPressure() :
+        _simulatedVoltage(0.0f),
+        _simulatedPressure(29.92f) {}
+
+    void begin() override {
+        Serial.println(F("[SENSOR] Simulated Interface Engine Mounted."));
+        Serial.println(F("  V <volts>  - set simulated sensor voltage"));
+        Serial.println(F("  P <inHg>   - set simulated atmospheric pressure"));
+
+        _simulatedVoltage = sysState->full_volts;
+        _simulatedPressure = sysState->full_pressure_inHg;
+    }
+
+    void update() override {
+        if (Serial.available() > 0) {
+            String inputStr = Serial.readStringUntil('\n');
+            inputStr.trim();
+
+            if (inputStr.length() > 0) {
+                char command = inputStr.charAt(0);
+                float value = inputStr.substring(1).toFloat();
+
+                if (command == 'V' || command == 'v') {
+                    _simulatedVoltage = value;
+                    Serial.printf(
+                        "[SIMULATOR] Voltage = %.3f V\n",
+                        _simulatedVoltage
+                    );
+                }
+                else if (command == 'P' || command == 'p') {
+                    _simulatedPressure = value;
+                    sysState->pressure_inHg = value;
+                    Serial.printf(
+                        "[SIMULATOR] Pressure = %.2f inHg\n",
+                        _simulatedPressure
+                    );
+                }
+            }
+        }
+    }
+
+    float getVoltage() override {
+        return _simulatedVoltage;
+    }
+
+    bool isHardwarePresent() override {
+        return true;
+    }
+
+    bool isFaulted() override {
+        return false;
+    }
+};

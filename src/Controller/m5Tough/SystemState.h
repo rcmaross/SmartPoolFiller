@@ -1,12 +1,14 @@
 #pragma once
 #include <Arduino.h>
 #include <Preferences.h>
+#define PRESSURE_TO_INCHES 13.6f
 
 struct SystemState {
     // scale time for testing.  perhaps someday we can make this configurable?
     //uint32_t time_scale_factor = 360; // 1hr = 10s
     uint32_t time_scale_factor = 1; //real world
     float fill_deadband_trigger = 0.25f;
+    float pressure_compensation = 1.0f;
 
    // --- Existing Hardware & Calibration State ---
     float empty_volts = 0.6f;
@@ -15,8 +17,9 @@ struct SystemState {
     float sim_voltage = 1.0f;
     bool use_metric = false;
     bool ads_hardware_found = false;
-    float pressure = 0.0f;
-    
+    float pressure_inHg = 29.92f;
+    float full_pressure_inHg = 29.92f;
+
     // --- Existing Network Tracking State ---
     int system_id = 1; // default system to allow multiple sets on 1 wifi.
     int connection_type = 1;     // 0=OFF, 1=WIFI, 2=AUTO, 3+=MANUAL
@@ -122,6 +125,7 @@ struct SystemState {
 
         prefs.putFloat("v_empty", empty_volts);
         prefs.putFloat("v_full", full_volts);
+        prefs.putFloat("p_full_inHg", full_pressure_inHg);
         prefs.putFloat("v_offset", offset_in);
         prefs.putBool("u_metric", use_metric);
         prefs.putFloat("f_deadband", fill_deadband_trigger);
@@ -142,6 +146,8 @@ struct SystemState {
         prefs.putString("t_tzrule", tz_posix_rule);
         prefs.putBool("t_format", use_24hr_format);
         
+        prefs.putFloat("pressure_compensation", pressure_compensation);
+
         prefs.end();
     }
 
@@ -153,6 +159,7 @@ struct SystemState {
 
         empty_volts = prefs.getFloat("v_empty", 0.6f);
         full_volts = prefs.getFloat("v_full", 3.0f);
+        full_pressure_inHg = prefs.getFloat("p_full_inHg", 29.92f);
         offset_in = prefs.getFloat("v_offset", 60.0f);
         use_metric = prefs.getBool("u_metric", false);
         fill_deadband_trigger = prefs.getFloat("f_deadband", 0.25f);
@@ -172,7 +179,8 @@ struct SystemState {
         timezone_offset_hours = prefs.getInt("t_tz", -5);
         tz_posix_rule = prefs.getString("t_tzrule", "EST5EDT,M3.2.0,M11.1.0");
         use_24hr_format = prefs.getBool("t_format", false);
-        
+        pressure_compensation = prefs.getFloat("pressure_compensation", 1.0f);
+
         prefs.end();
     }
 
@@ -189,18 +197,55 @@ struct SystemState {
             return("EMPTY / NO SIGNAL");
     }
 
-    void getInstantaneousPoolMetrics(int& out_pct, float& out_depth, const char*& out_status) {
-        float volts = sim_voltage;
-        if (volts < empty_volts) volts = empty_volts;
-        
-        float span = full_volts - empty_volts;
-        float pct_f = 0.0f;
-        if (span > 0.001f) {
-            pct_f = ((volts - empty_volts) / span) * 100.0f;
-        }
-        out_pct = (int)pct_f;
+    // no correction for pressure when it comes to initializing history
+    // here we assume the full state and pressure.
 
-        out_depth = (pct_f / 100.0f) * offset_in;
+    void getInitialPoolMetrics(int& out_pct,
+                                    float& out_depth,
+                                    const char*& out_status) {
+        float volts = sim_voltage;
+
+        float span = full_volts - empty_volts;
+
+        // Empirical voltage -> depth calibration.
+        float inches_per_volt = offset_in / span;
+
+        float depth = (volts - empty_volts) * inches_per_volt;
+
+        out_depth = depth;
+
+        // Deliberately allow >100% for an overfull pool.
+        out_pct = (int)((depth / offset_in) * 100.0f);
+
+        out_status = getPoolStatus(out_pct);
+    }
+
+    void getInstantaneousPoolMetrics(int& out_pct,
+                                    float& out_depth,
+                                    const char*& out_status) {
+        float volts = sim_voltage;
+
+        float span = full_volts - empty_volts;
+
+        // Empirical voltage -> depth calibration.
+        float inches_per_volt = offset_in / span;
+
+        float depth = (volts - empty_volts) * inches_per_volt;
+
+        // Correct for the change in atmospheric pressure since the
+        // full-depth calibration was performed.
+        float pressure_delta = pressure_inHg - full_pressure_inHg;
+
+        float pressure_depth_correction =
+            pressure_delta * PRESSURE_TO_INCHES * pressure_compensation;
+
+        depth += pressure_depth_correction;
+
+        out_depth = depth;
+
+        // Deliberately allow >100% for an overfull pool.
+        out_pct = (int)((depth / offset_in) * 100.0f);
+
         out_status = getPoolStatus(out_pct);
     }
 
@@ -218,7 +263,7 @@ struct SystemState {
 
     void initHistory(){
         int init_pct = 0; float init_depth = 0.0f; const char* init_status = "";
-        getInstantaneousPoolMetrics(init_pct, init_depth, init_status);
+        getInitialPoolMetrics(init_pct, init_depth, init_status);
 
         for (int i = 0; i < 60; i++) {
             depth_history[i] = init_depth;
@@ -237,6 +282,13 @@ struct SystemState {
     float convertFromInch(float value){
         if (use_metric){
             return(value * 2.54f);
+        }
+        return(value);
+    }
+
+    float convertFromInHg(float value){
+        if (use_metric){
+            return(value * 33.8639f);
         }
         return(value);
     }

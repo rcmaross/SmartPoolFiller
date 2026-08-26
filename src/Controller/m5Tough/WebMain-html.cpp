@@ -15,7 +15,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
 h2 { color: var(--primary); margin-top: 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
 .dashboard-grid { display: flex; gap: 30px; align-items: flex-start; margin-top: 15px; }
+.tank-wrapper { position: relative; width: 70px; height: 134px; }
 .tank-container { width: 35px; height: 130px; border: 2px solid #94a3b8; border-radius: 2px; position: relative; background: #f1f5f9; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.tank-full-label { position: absolute; left: 43px; top: 14px; font-size: 14px; color: #94a3b8; white-space: nowrap; }
 .tank-segment { width: 100%; transition: height 0.3s ease; }
 .seg-red { background: #ef4444; height: 0%; }
 .seg-yellow { background: #eab308; height: 0%; }
@@ -65,17 +67,20 @@ const char* INDEX_HTML PROGMEM = R"rawliteral(
         <div class="card">
             <h2>💧 MainDisplay</h2>
             <div class="dashboard-grid">
-                <div class="tank-container">
-                    <div id="tankRed" class="tank-segment seg-red"></div>
-                    <div id="tankYellow" class="tank-segment seg-yellow"></div>
-                    <div id="tankBlue" class="tank-segment seg-blue"></div>
-                </div>
+                <div class="tank-wrapper">
+                    <div class="tank-container">
+                        <div id="tankRed" class="tank-segment seg-red"></div>
+                        <div id="tankYellow" class="tank-segment seg-yellow"></div>
+                        <div id="tankBlue" class="tank-segment seg-blue"></div>
+                    </div>
+                    <div id="tankFullLabel" class="tank-full-label">36.0</div>
+                </div>                
                 <div class="metric-list">
                     <p id="lblDepth" class="m-depth">0.00 in</p>
-                    <p id="lblDelta" class="m-delta">0.00 in</p>
                     <p id="lblValve" class="m-text" style="font-weight:bold;">VALVE: STANDBY</p>
                     <p id="lblLive" class="m-text">Inst: --</p>
-                    <p id="lblVolt" class="m-text">Sensor: --</p>
+                    <p id="lblVolt" class="m-text">Raw Volt: --</p>
+                    <p id="lblPress" class="m-text">Pressure: --</p>
                     <p id="lblMac" class="m-text" style="color:#94a3b8;">MAC: --</p>
                 </div>
             </div>
@@ -126,7 +131,6 @@ const char* FOOTER_HTML PROGMEM = R"rawliteral(
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('lblDepth').innerText = data.depth;
-                    document.getElementById('lblDelta').innerText = data.delta;
                     
                     const valveTxtBlock = document.getElementById('lblValve');
                     if (valveTxtBlock) {
@@ -136,6 +140,7 @@ const char* FOOTER_HTML PROGMEM = R"rawliteral(
                     
                     document.getElementById('lblLive').innerText  = data.live;
                     document.getElementById('lblVolt').innerText  = data.volt;
+                    document.getElementById('lblPress').innerText  = data.pressure;
                     document.getElementById('lblMac').innerText   = data.mac;
 
                     // Compute your exact hardware tank rectangle scale layout dimensions dynamically
@@ -165,6 +170,7 @@ const char* FOOTER_HTML PROGMEM = R"rawliteral(
                         ySeg.style.height = "0%";
                         bSeg.style.height = "83.0%"; // Lock solid at 100% capacity level
                     }
+                    document.getElementById('tankFullLabel').innerText = data.full;
                 }).catch(() => {});
         }
         

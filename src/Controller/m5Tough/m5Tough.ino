@@ -10,6 +10,8 @@
 #include <Wire.h>               
 #include <WiFi.h>
 #include <ArduinoOTA.h>
+#include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
 
 #include "SystemState.h"
 #include "PoolSensor.h"       
@@ -22,20 +24,22 @@
 #include "WebMain.h"
 
 // Timing threshold: 5 minutes in milliseconds (5 * 60 * 1000)
-const unsigned long INACTIVITY_TIMEOUT = 300000; 
-// faster for testing
-//const unsigned long INACTIVITY_TIMEOUT = 30000; 
-
-const unsigned long HARDWARE_INTERVAL = 1000; // ms 1000ms = 1s
-const unsigned long UI_INTERVAL = 1000; // ms 1000ms = 1s
+#define INACTIVITY_TIMEOUT (300000)
+// 1s
+#define HARDWARE_INTERVAL (1000)
+// 1s
+#define UI_INTERVAL (1000)
+// 1hr
+#define BAROMETRIC_UPDATE_INTERVAL (30UL * 60UL * 1000UL)
 
 SystemState *sysState = nullptr;
 PoolSensor* activeSensor = nullptr; 
 lv_obj_t* sl_status_label = nullptr;
 lv_obj_t* sl_wifi_icon_label = nullptr; 
 
-static const uint32_t screenWidth  = 320;
-static const uint32_t screenHeight = 240;
+#define SCREEN_WIDTH  320
+#define SCREEN_HEIGHT 240
+
 static uint8_t * draw_buf = nullptr;
 
 TabMainDisplay *tabMainDisplay = nullptr;
@@ -47,12 +51,9 @@ StorageDisk *storageDisk = nullptr;
 WiFiServer *poolServer = nullptr;
 
 unsigned long lastHardwareSample = 0;
+unsigned long lastBarometricUpdate = 0;
 unsigned long lastTouchTime = 0;       
 bool screenIsDimmed = false;  
-
-// hard code to my house for now.
-String lat = "42.5980";
-String lon = "-71.4897";
 
 void setDisplayBrightness(bool lowPower) {
     if (lowPower) {
@@ -181,17 +182,197 @@ void setup_ui() {
     if (tabNetwork != nullptr)     tabNetwork->setup(t4);
     if (tabHistory != nullptr)     tabHistory->setup(t5); 
 }
+bool fetchBarometricPressure()
+{
+    return fetchBarometricPressureFromWeatherUnderground();
+}
+
+bool fetchBarometricPressureFromWeatherUnderground()
+{
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[BARO] WiFi not connected");
+        return false;
+    }
+
+    if (!client.connect("api.weather.com", 443)) {
+        Serial.println("[BARO] Connection failed");
+        return false;
+    }
+
+    client.println(
+        "GET /v2/pws/observations/current"
+        "?stationId=KMAWESTF175"
+        "&format=json"
+        "&units=e"
+        "&numericPrecision=decimal"
+        "&apiKey=9ab5956389444272b595638944b2724c"
+        " HTTP/1.1"
+    );
+
+    client.println("Host: api.weather.com");
+    client.println("Connection: close");
+    client.println();
+
+    // Discard HTTP headers.
+    if (!client.find("\r\n\r\n")) {
+        Serial.println("[BARO] HTTP headers not found");
+        client.stop();
+        return false;
+    }
+    String response = client.readString();
+
+    //Serial.printf("[BARO] Response length: %d\n", response.length());
+    //Serial.print("[BARO] Response: ");
+    //Serial.println(response.substring(0, 300));
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (error) {
+        Serial.print("[BARO] JSON error: ");
+        Serial.println(error.c_str());
+        client.stop();
+        return false;
+    }
+
+    // Check for an API-level error response.
+    bool apiError = doc["error"];
+
+    if (apiError) {
+        const char* reason = doc["reason"];
+        Serial.printf("[BARO] API error: %s\n", reason);
+        client.stop();
+        return false;
+    }
+
+    // Get the pressure and the units reported by the API.
+    float pressure = doc["observations"][0]["imperial"]["pressure"];
+
+    client.stop();
+
+    // Only update the system state after a completely successful fetch.
+    sysState->pressure_inHg = pressure;
+
+    Serial.print("[BARO] Pressure: ");
+    Serial.print(sysState->pressure_inHg, 2);
+    Serial.println(" inHg");
+    return true;
+}
 
 
-float fetchBarometricPressure() {
-    return 0.00f;
+bool fetchBarometricPressureFromOpenMeteo()
+{
+    WiFiClient client;
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[BARO] WiFi not connected");
+        return false;
+    }
+
+    if (!client.connect("api.open-meteo.com", 80)) {
+        Serial.println("[BARO] Connection failed");
+        return false;
+    }
+
+    client.println(
+        "GET /v1/forecast"
+        "?latitude=42.640026"
+        "&longitude=-71.2946"
+        "&current=surface_pressure"
+        " HTTP/1.0"
+    );
+    client.println("Host: api.open-meteo.com");
+    client.println();
+
+    // Discard HTTP headers.
+    if (!client.find("\r\n\r\n")) {
+        Serial.println("[BARO] HTTP headers not found");
+        client.stop();
+        return false;
+    }
+
+    JsonDocument doc;
+
+    DeserializationError error = deserializeJson(doc, client);
+
+    if (error) {
+        Serial.print("[BARO] JSON error: ");
+        Serial.println(error.c_str());
+        client.stop();
+        return false;
+    }
+
+    // Check for an API-level error response.
+    bool apiError = doc["error"];
+
+    if (apiError) {
+        const char* reason = doc["reason"];
+        Serial.printf("[BARO] API error: %s\n", reason);
+        client.stop();
+        return false;
+    }
+
+    // Get the pressure and the units reported by the API.
+    const char* units = doc["current_units"]["surface_pressure"];
+    float pressure = doc["current"]["surface_pressure"];
+
+    if (!units) {
+        Serial.println("[BARO] Pressure units missing");
+        client.stop();
+        return false;
+    }
+
+    Serial.print("[BARO] API pressure: ");
+    Serial.print(pressure);
+    Serial.print(" ");
+    Serial.println(units);
+
+    if (strcmp(units, "hPa") == 0) {
+        pressure *= 0.029529983f;
+    }
+    else if (strcmp(units, "inHg") != 0) {
+        Serial.print("[BARO] Unknown pressure unit: ");
+        Serial.println(units);
+        client.stop();
+        return false;
+    }
+
+    client.stop();
+
+    // Only update the system state after a completely successful fetch.
+    sysState->pressure_inHg = pressure;
+
+    Serial.print("[BARO] Pressure: ");
+    Serial.print(sysState->pressure_inHg, 2);
+    Serial.println(" inHg");
+    return true;
+}
+
+static void printLvglMemory(const char *where)
+{
+    lv_mem_monitor_t m;
+    lv_mem_monitor(&m);
+
+    Serial.printf(
+        "LVGL MEM %-20s total=%u free=%u biggest=%u used_cnt=%u free_cnt=%u max_used=%u used_pct=%u frag_pct=%u\n",
+        where,
+        (unsigned)m.total_size,
+        (unsigned)m.free_size,
+        (unsigned)m.free_biggest_size,
+        (unsigned)m.used_cnt,
+        (unsigned)m.free_cnt,
+        (unsigned)m.max_used,
+        (unsigned)m.used_pct,
+        (unsigned)m.frag_pct
+    );
 }
 
 void hw_loop(unsigned long currentMillis) {
 
     auto dt = M5.Rtc.getDateTime();
-
-    sysState->pressure = fetchBarometricPressure();
 
     // read sensor every second
     if (activeSensor != nullptr) {
@@ -266,14 +447,24 @@ void hw_loop(unsigned long currentMillis) {
 }
 void loop() {
     unsigned long currentMillis = millis();
+    static bool firstBP = true;
 
     ArduinoOTA.handle();
 
     if (currentMillis - lastHardwareSample >= HARDWARE_INTERVAL) {
         lastHardwareSample = currentMillis;
         hw_loop(currentMillis);
+        if (firstBP) {
+            bool status = fetchBarometricPressure();
+            if (status) firstBP = false;
+        }   
     }
-    
+
+    if (currentMillis - lastBarometricUpdate >= BAROMETRIC_UPDATE_INTERVAL) {
+        fetchBarometricPressure();
+        lastBarometricUpdate = currentMillis;
+    }
+
     static uint32_t lastMenuUpdate = 0;
     if (currentMillis - lastMenuUpdate >= UI_INTERVAL) {
         lastMenuUpdate = currentMillis;
@@ -332,7 +523,10 @@ void setup() {
     tzset(); // Force the system to update its local time offsets right now
 
     sysState->loadFromFlash();
-   
+    // start assuming we are in the full state as far as pressure
+    // and adjust accordingly once we have a real pressure reading
+    sysState->pressure_inHg = sysState->full_pressure_inHg;
+
     storageDisk = new StorageDisk();
     storageDisk->initMicroSDCard();
 
@@ -382,22 +576,24 @@ void setup() {
 
     } else {
         Serial.println(F("[BOOT] Bus lines open or unpowered. Launching Simulator..."));
-        activeSensor = new SimulatedSerialSensor();
+        //activeSensor = new SimulatedSerialSensor();
+        activeSensor = new SimulatedSerialSensorWithPressure();
+
     }
     activeSensor->begin();
     sysState->sim_voltage = activeSensor->getVoltage();
-
 
     sysState->initHistory();
 
     WiFi.onEvent(WiFiEventTracker);
 
     lv_init();
+    printLvglMemory("lv_init");
 
-    lv_display_t * disp = lv_display_create(screenWidth, screenHeight);
+    lv_display_t * disp = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
     lv_display_set_flush_cb(disp, my_disp_flush);
 
-    uint32_t buf_size = screenWidth * 2 * sizeof(lv_color_t);
+    uint32_t buf_size = SCREEN_WIDTH * 2 * sizeof(lv_color_t);
     draw_buf = (uint8_t*)malloc(buf_size);
     
     if (draw_buf != nullptr) {
@@ -421,6 +617,8 @@ void setup() {
     ArduinoOTA.setRebootOnSuccess(true); 
 
     Serial.println("\n--- HARDWARE MEMORY AUDIT ---");
+
+    printLvglMemory("setup_ui()");
     size_t freeInternalRAM = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     size_t totalInternalRAM = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
     size_t usedInternalRAM = totalInternalRAM - freeInternalRAM;

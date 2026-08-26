@@ -36,7 +36,7 @@ const char* INDEX_DOWNLOAD_HTML PROGMEM = R"rawliteral(
                         const li = document.createElement('li');
                         li.className = 'file-item';
                         li.innerHTML = `
-                            <span class="file-name">📄 ${f.name} (${f.size} bytes)</span>
+                            <span class="file-name">📄 ${f.name} (${f.size} bytes) -- ${f.date} </span>
                             <div style="display:flex; gap:10px; align-items:center;">
                                 <a href="/api/download?file=${encodeURIComponent(f.name)}" class="btn-download">Download</a>
                                 <!-- Dynamic individual file erase button -->

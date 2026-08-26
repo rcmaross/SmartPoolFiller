@@ -76,19 +76,19 @@ void TabSettings::update(bool force) {
     if (!btn_unit_toggle || !l_unit_btn_text || !l_fill_window_text || !btn_well_toggle || !l_sys_id_text) return;
 
     if (!sysState->use_metric) {
-        updateString(l_unit_btn_text, "UNITS: INCHES");
+        updateString(l_unit_btn_text, "IMPERIAL");
         lv_obj_set_style_bg_color(btn_unit_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
     } else {
-        updateString(l_unit_btn_text, "UNITS: METRIC (cm)");
+        updateString(l_unit_btn_text, "METRIC");
         lv_obj_set_style_bg_color(btn_unit_toggle, lv_palette_main(LV_PALETTE_TEAL), 0);
     }
     
     if (btn_time_format_toggle && l_time_format_text) {
         if (!sysState->use_24hr_format) {
-            updateString(l_time_format_text, "FORMAT: 12 HR");
+            updateString(l_time_format_text, "12 HR");
             lv_obj_set_style_bg_color(btn_time_format_toggle, lv_palette_main(LV_PALETTE_GREY), 0);
         } else {
-            updateString(l_time_format_text, "FORMAT: 24 HR");
+            updateString(l_time_format_text, "24 HR");
             lv_obj_set_style_bg_color(btn_time_format_toggle, lv_palette_main(LV_PALETTE_TEAL), 0);
         }
     }

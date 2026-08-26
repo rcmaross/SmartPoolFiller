@@ -241,9 +241,10 @@ public:
             if (true_window_run_minutes > 60.0f) true_window_run_minutes = 60.0f; // Maximum hour constraint
 
             int depth_i = (int)(depth * 100.0f); // multiply by 100 to make a psuedo float
+            float pressure = sysState->pressure_inHg;
 
             if (year >= 2025)
-                storageDisk->logHourlyRowToSD(year, time_str, sysState->system_id, depth, instant_depth, true_window_run_minutes, sysState->active_master_command_state);
+                storageDisk->logHourlyRowToSD(year, time_str, sysState->system_id, depth, instant_depth, true_window_run_minutes, pressure);
 
             // A. Overwrite the single oldest slot in the master 168-hour history log [INDEX]
             level_history_log[ring_write_index] = depth_i;

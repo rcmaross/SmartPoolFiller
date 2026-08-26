@@ -111,18 +111,22 @@ void handlePoolWebClient(WiFiServer *server) {
         client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n");
 
         lv_obj_t* depthL = getObjByName("main_depth");
-        lv_obj_t* deltaL = getObjByName("main_delta");
+        //lv_obj_t* deltaL = getObjByName("main_delta");
         lv_obj_t* valveL = getObjByName("main_valve");
         lv_obj_t* liveL  = getObjByName("main_live");
         lv_obj_t* voltL  = getObjByName("main_volt");
+        lv_obj_t* pressL = getObjByName("main_pressure");
         lv_obj_t* macL   = getObjByName("main_mac");
+        lv_obj_t* fullL  = getObjByName("main_full");
 
         const char* txtDepth = depthL ? lv_label_get_text(depthL) : "0.00 in";
-        const char* txtDelta = deltaL ? lv_label_get_text(deltaL) : "0.00 in";
+        //const char* txtDelta = deltaL ? lv_label_get_text(deltaL) : "0.00 in";
         const char* txtValve = valveL ? lv_label_get_text(valveL) : "VALVE: OFFLINE";
         const char* txtLive  = liveL  ? lv_label_get_text(liveL)  : "Inst: --";
-        const char* txtVolt  = voltL  ? lv_label_get_text(voltL)  : "Sensor: --";
+        const char* txtVolt  = voltL  ? lv_label_get_text(voltL)  : "Raw Volt: --";
+        const char* txtPress = pressL ? lv_label_get_text(pressL) : "Pressure: --";
         const char* txtMac   = macL   ? lv_label_get_text(macL)   : "MAC: --";
+        const char* txtFull  = fullL  ? lv_label_get_text(fullL)  : "--.-";
 
         // NEW: Read the text color property of the valve label using the LVGL v9 engine
         String valveColorHex = "#64748b"; // Default slate-grey fallback
@@ -142,12 +146,15 @@ void handlePoolWebClient(WiFiServer *server) {
 
         client.print("{");
         client.print("\"depth\":\""); client.print(txtDepth); client.print("\",");
-        client.print("\"delta\":\""); client.print(txtDelta); client.print("\",");
+        //client.print("\"delta\":\""); client.print(txtDelta); client.print("\",");
         client.print("\"valve\":\""); client.print(txtValve); client.print("\",");
         client.print("\"valveColor\":\""); client.print(valveColorHex); client.print("\","); // Added parameter link
         client.print("\"live\":\"");  client.print(txtLive);  client.print("\",");
         client.print("\"volt\":\"");  client.print(txtVolt);  client.print("\",");
+        client.print("\"pressure\":\""); client.print(txtPress); client.print("\",");
         client.print("\"mac\":\"");   client.print(txtMac);   client.print("\",");
+        client.print("\"full\":\"");   client.print(txtFull);   client.print("\",");
+
         client.print("\"pct\":");     client.print(pct);
         client.print("}");
         client.stop();

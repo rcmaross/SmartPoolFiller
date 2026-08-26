@@ -38,6 +38,10 @@ protected:
     const char* app_dir = "/SmartPoolFiller";
     inline static StorageDisk *_instance = nullptr;
     // Helper utility to combine our folder with the dynamic filename
+    void getCsvFilePath(int rtc_year, int version, char* dest_buf, size_t buf_size) {
+        snprintf(dest_buf, buf_size, "%s/history_v%d_%04d.csv", app_dir, version, rtc_year);
+    }
+    // very first version had no version so use this to get it.
     void getCsvFilePath(int rtc_year, char* dest_buf, size_t buf_size) {
         snprintf(dest_buf, buf_size, "%s/history_%04d.csv", app_dir, rtc_year);
     }
@@ -202,15 +206,21 @@ public:
         return overallSuccess;
     }
 
-    void logHourlyRowToSD(int rtc_year, const char* timestamp, int system_id, float median_depth, float instant_depth, int valve_mins, int command_state) {
+    void logHourlyRowToSD(int rtc_year, const char* timestamp, int system_id, float median_depth, 
+                            float instant_depth, int valve_mins, float pressure) {
+ 
+        int version = 2; // bump when format of CSV changes
+ 
+ 
         ScopedMount mount(sd_cs_pin, mount_point);
         if (!mount.isReady()) {
             Serial.println("[STORAGE ERROR] Card remains thermally locked out. Skipping hour.");
             return; 
         }
-
+        
         char path_buf[64] = {0};
-        getCsvFilePath(rtc_year, path_buf, sizeof(path_buf));
+        
+        getCsvFilePath(rtc_year, version, path_buf, sizeof(path_buf));
 
         bool fileExists = SD.exists(path_buf);
         File logFile = SD.open(path_buf, FILE_APPEND);
@@ -220,11 +230,11 @@ public:
         }
 
         if (!fileExists) {
-            logFile.println("Timestamp,SystemID,MedianDepth_in,InstantDepth_in,ValveRun_mins,CommandState");
+            logFile.println("Timestamp,SystemID,MedianDepth_in,InstantDepth_in,ValveRun_mins,pressure");
             Serial.printf("[STORAGE] Created fresh rotated log file structure: %s\n", path_buf);
         }
 
-        logFile.printf("%s,%d,%.2f,%.2f,%d,%d\n", timestamp, system_id, median_depth, instant_depth, valve_mins, command_state);
+        logFile.printf("%s,%d,%.2f,%.2f,%d,%.2f\n", timestamp, system_id, median_depth, instant_depth, valve_mins, pressure);
         logFile.flush();
         logFile.close();
 

@@ -50,7 +50,7 @@ public:
 
         lv_obj_set_size(rect_mid_yellow, tank_w, full_h);
         lv_obj_set_pos(rect_mid_yellow, tank_x, tank_floor_y - full_h);
-        l_full = createString(tab_container, "0.0", 14, tank_x + tank_w + 8, tank_floor_y - full_h - 8, lv_color_black());
+        l_full = createString(tab_container, "0.0", 14, tank_x + tank_w + 8, tank_floor_y - full_h - 8, lv_palette_main(LV_PALETTE_GREY));
 
         // left half of display...
         int left_margin = 100 + tank_x;
@@ -66,16 +66,17 @@ public:
         next += sm_offset;
         l_raw_voltage = createString(tab_container, "Raw Volt: 0.000 V", 14, left_margin, next, lv_color_black());
         next += sm_offset;
-        l_raw_pressure = createString(tab_container, "Raw Press: 00.00 inHg", 14, left_margin, next, lv_color_black());
+        l_raw_pressure = createString(tab_container, "Pressure: 00.00 inHg", 14, left_margin, next, lv_color_black());
         next += sm_offset;
         l_mac_addr = createString(tab_container, "MAC: 00:00:00:00:00:00", 14, left_margin, next, lv_palette_main(LV_PALETTE_GREY));
 
         registerUiObj("main_depth", l_measurement);
-        registerUiObj("main_delta", l_measurement); // fix web to not use this
         registerUiObj("main_valve", l_valve_state);
         registerUiObj("main_live",  l_live_measure);
         registerUiObj("main_volt",  l_raw_voltage);
+        registerUiObj("main_pressure", l_raw_pressure); 
         registerUiObj("main_mac",   l_mac_addr);
+        registerUiObj("main_full", l_full);
 
     }
 
@@ -155,7 +156,8 @@ public:
         snprintf(mac_buffer, sizeof(mac_buffer), "MAC: %02X:%02X:%02X:%02X:%02X:%02X", (int)sysState->mac_address[0], (int)sysState->mac_address[1], (int)sysState->mac_address[2], (int)sysState->mac_address[3], (int)sysState->mac_address[4], (int)sysState->mac_address[5]);
         updateString(l_mac_addr, mac_buffer);
 
-        String pressureStr = String(sysState->pressure) + " inHg";
+        float ui_pressure = sysState->convertFromInHg(sysState->pressure_inHg);
+        String pressureStr = "Pressure: " + String(ui_pressure);
         updateString(l_raw_pressure, pressureStr.c_str(), lv_palette_main(LV_PALETTE_BLUE));
         if (sysState->ads_hardware_found) {
             String voltStr = "Raw Volt: " + String(sysState->sim_voltage, 3) + " V";
