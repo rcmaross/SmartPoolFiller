@@ -244,7 +244,7 @@ public:
             float pressure = sysState->pressure_inHg;
 
             if (year >= 2025)
-                storageDisk->logHourlyRowToSD(year, time_str, sysState->system_id, depth, instant_depth, true_window_run_minutes, pressure);
+                storageDisk->logHourlyRowToSD(year, time_str, sysState->system_id, depth, instant_depth, true_window_run_minutes, pressure, sysState->sim_voltage);
 
             // A. Overwrite the single oldest slot in the master 168-hour history log [INDEX]
             level_history_log[ring_write_index] = depth_i;

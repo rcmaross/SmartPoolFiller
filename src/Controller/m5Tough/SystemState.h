@@ -145,9 +145,7 @@ struct SystemState {
         prefs.putInt("t_tz", timezone_offset_hours);
         prefs.putString("t_tzrule", tz_posix_rule);
         prefs.putBool("t_format", use_24hr_format);
-        
-        prefs.putFloat("pressure_compensation", pressure_compensation);
-
+        prefs.putFloat("p_comp", pressure_compensation);
         prefs.end();
     }
 
@@ -179,8 +177,7 @@ struct SystemState {
         timezone_offset_hours = prefs.getInt("t_tz", -5);
         tz_posix_rule = prefs.getString("t_tzrule", "EST5EDT,M3.2.0,M11.1.0");
         use_24hr_format = prefs.getBool("t_format", false);
-        pressure_compensation = prefs.getFloat("pressure_compensation", 1.0f);
-
+        pressure_compensation = prefs.getFloat("p_comp", 1.0f);
         prefs.end();
     }
 

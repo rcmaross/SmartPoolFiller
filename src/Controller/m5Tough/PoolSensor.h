@@ -72,6 +72,9 @@ public:
             
             _currentVoltage = _ads.computeVolts(primaryRead);
             Serial.println("ads.computeVolts() calculation verified");
+
+            _ads.setDataRate(RATE_ADS1115_8SPS);
+            _ads.startADCReading(MUX_BY_CHANNEL[0], true);
         }
     }
 
@@ -86,7 +89,7 @@ public:
         // 1. Physical Bus Telemetry Check
         _wire.beginTransmission(0x48);
         uint8_t i2cError = _wire.endTransmission();
-
+    
         // If the device on address 0x48 does not return a clean ACK (0 = Success)
         if (i2cError != 0) {
             if (!_isCurrentlyFaulted) {
@@ -98,8 +101,13 @@ public:
         }
 
         // 2. Data Acquisition
-        int16_t raw0 = _ads.readADC_SingleEnded(0);
+        // enable this to do sinle blocking reads but change data rate
+        // cuz data rate is now super slow (ie super accurate) and will
+        // block for 125ms!
 
+        //int16_t raw0 = _ads.readADC_SingleEnded(0);
+        int16_t raw0 = _ads.getLastConversionResults();
+/*
         // 3. Digital Output Freeze Detection Watchdog
         if (raw0 == _lastRawAdc && raw0 != 0) {
             _frozenCounter++;
@@ -107,15 +115,17 @@ public:
             _frozenCounter = 0;
             _lastRawAdc = raw0;
         }
+*/
         _currentVoltage = _ads.computeVolts(raw0);
 
         // Intercept corrupt or internal library artifact error bounds (e.g., timeouts)
-        if (_currentVoltage < 0.4f || _frozenCounter >= _frozenLimit) {
+        if (_currentVoltage < 0.4f || _currentVoltage > 4.0f || _frozenCounter >= _frozenLimit) {
             if (!_isCurrentlyFaulted) {
                 Serial.printf("[SENSOR FAULT] Corrupted or frozen registration data packet received: %d\n", raw0);
             }
             _isCurrentlyFaulted = true;
             _currentVoltage = 0.0f; 
+            // wire.end, delay(10), wire.begin, this->begin()
         } else {
             // Hot Recovery Path: If the hardware comes back online, recover smoothly
             if (_isCurrentlyFaulted) {

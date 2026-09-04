@@ -184,7 +184,9 @@ void setup_ui() {
 }
 bool fetchBarometricPressure()
 {
-    return fetchBarometricPressureFromWeatherUnderground();
+    //return fetchBarometricPressureFromWeatherUnderground();
+    return fetchBarometricPressureFromOpenMeteo();
+    //return true;
 }
 
 bool fetchBarometricPressureFromWeatherUnderground()
@@ -193,7 +195,6 @@ bool fetchBarometricPressureFromWeatherUnderground()
     client.setInsecure();
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[BARO] WiFi not connected");
         return false;
     }
 
@@ -224,9 +225,9 @@ bool fetchBarometricPressureFromWeatherUnderground()
     }
     String response = client.readString();
 
-    //Serial.printf("[BARO] Response length: %d\n", response.length());
-    //Serial.print("[BARO] Response: ");
-    //Serial.println(response.substring(0, 300));
+    Serial.printf("[BARO] Response length: %d\n", response.length());
+    Serial.print("[BARO] Response: ");
+    Serial.println(response.substring(0, 300));
 
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, response);
@@ -276,7 +277,25 @@ bool fetchBarometricPressureFromOpenMeteo()
         Serial.println("[BARO] Connection failed");
         return false;
     }
-
+/*
+to get a bunch of stuff:
+    client.println(
+        "GET /v1/forecast"
+        "?latitude=42.640026"
+        "&longitude=-71.2946"
+        "&current=temperature_2m"
+        ",relative_humidity_2m"
+        ",precipitation"
+        ",pressure_msl"
+        ",surface_pressure"
+        ",cloud_cover"
+        ",wind_speed_10m"
+        ",wind_direction_10m"
+        ",wind_gusts_10m"
+        ",shortwave_radiation"
+        " HTTP/1.0"
+    );
+*/
     client.println(
         "GET /v1/forecast"
         "?latitude=42.640026"
@@ -324,12 +343,12 @@ bool fetchBarometricPressureFromOpenMeteo()
         client.stop();
         return false;
     }
-
+    /*
     Serial.print("[BARO] API pressure: ");
     Serial.print(pressure);
     Serial.print(" ");
     Serial.println(units);
-
+    */
     if (strcmp(units, "hPa") == 0) {
         pressure *= 0.029529983f;
     }
@@ -345,9 +364,11 @@ bool fetchBarometricPressureFromOpenMeteo()
     // Only update the system state after a completely successful fetch.
     sysState->pressure_inHg = pressure;
 
+    /*
     Serial.print("[BARO] Pressure: ");
     Serial.print(sysState->pressure_inHg, 2);
     Serial.println(" inHg");
+    */
     return true;
 }
 
@@ -454,10 +475,7 @@ void loop() {
     if (currentMillis - lastHardwareSample >= HARDWARE_INTERVAL) {
         lastHardwareSample = currentMillis;
         hw_loop(currentMillis);
-        if (firstBP) {
-            bool status = fetchBarometricPressure();
-            if (status) firstBP = false;
-        }   
+        //printLvglMemory("loop"); 
     }
 
     if (currentMillis - lastBarometricUpdate >= BAROMETRIC_UPDATE_INTERVAL) {
@@ -629,5 +647,6 @@ void setup() {
     Serial.println("-----------------------------\n");
 
     ArduinoOTA.begin();
-
+    // do the first update in 1min to give the wifi time to come up
+    lastBarometricUpdate = millis() - BAROMETRIC_UPDATE_INTERVAL + 60000;
 }

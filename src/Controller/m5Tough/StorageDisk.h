@@ -207,9 +207,9 @@ public:
     }
 
     void logHourlyRowToSD(int rtc_year, const char* timestamp, int system_id, float median_depth, 
-                            float instant_depth, int valve_mins, float pressure) {
+                            float instant_depth, int valve_mins, float pressure, float voltage) {
  
-        int version = 2; // bump when format of CSV changes
+        int version = 3; // bump when format of CSV changes
  
  
         ScopedMount mount(sd_cs_pin, mount_point);
@@ -230,11 +230,11 @@ public:
         }
 
         if (!fileExists) {
-            logFile.println("Timestamp,SystemID,MedianDepth_in,InstantDepth_in,ValveRun_mins,pressure");
+            logFile.println("Timestamp,SystemID,MedianDepth_in,InstantDepth_in,ValveRun_mins,pressure, voltage");
             Serial.printf("[STORAGE] Created fresh rotated log file structure: %s\n", path_buf);
         }
 
-        logFile.printf("%s,%d,%.2f,%.2f,%d,%.2f\n", timestamp, system_id, median_depth, instant_depth, valve_mins, pressure);
+        logFile.printf("%s,%d,%.2f,%.2f,%d,%.2f,%.4f\n", timestamp, system_id, median_depth, instant_depth, valve_mins, pressure, voltage);
         logFile.flush();
         logFile.close();
 
